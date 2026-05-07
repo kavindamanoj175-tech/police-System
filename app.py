@@ -12,21 +12,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Navigation Logic (Fixing the Sync Issue) ---
-tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
+# Password Hashing Functions
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
 
-if 'nav_selection' not in st.session_state:
-    st.session_state['nav_selection'] = tabs_list[0]
+def check_hashes(password, hashed_text):
+    if make_hashes(password) == hashed_text:
+        return hashed_text
+    return False
 
-# බටන් ක්ලික් කළාම සෙලෙක්ෂන් එක මාරු කරන ෆන්ක්ෂන් එක
-def update_nav(index):
-    st.session_state['nav_selection'] = tabs_list[index]
-
-# --- 2. Database Init ---
+# --- 2. Database Functions ---
 def init_db():
     conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
     c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS userstable (username TEXT, password TEXT, is_approved INTEGER DEFAULT 0)')
+    c.execute('CREATE TABLE IF NOT EXISTS userstable (username TEXT, password TEXT)')
     c.execute('''CREATE TABLE IF NOT EXISTS detailed_raids 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   date TEXT, time TEXT, zone TEXT, division TEXT, camp TEXT,
@@ -41,9 +40,69 @@ def init_db():
     conn.commit()
     conn.close()
 
+def add_userdata(username, password):
+    conn = sqlite3.connect('police_master_system.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO userstable(username, password) VALUES (?,?)', (username, password))
+    conn.commit()
+    conn.close()
+
+def login_user(username, password):
+    conn = sqlite3.connect('police_master_system.db')
+    c = conn.cursor()
+    c.execute('SELECT * FROM userstable WHERE username =? AND password =?', (username, password))
+    data = c.fetchall()
+    return data
+
 init_db()
 
-# --- 3. ධුරාවලිය (Hierarchy) ---
+# --- 3. Navigation Logic ---
+tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
+
+if 'nav_selection' not in st.session_state:
+    st.session_state['nav_selection'] = tabs_list[0]
+
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+
+def update_nav(index):
+    st.session_state['nav_selection'] = tabs_list[index]
+
+# --- 4. Sidebar & Auth ---
+st.sidebar.title("👮 STF DBMS")
+
+# Login / Sign Up UI
+if not st.session_state['logged_in']:
+    auth_mode = st.sidebar.selectbox("තෝරන්න", ["Login", "Sign Up"])
+    
+    if auth_mode == "Login":
+        u = st.sidebar.text_input("User Name")
+        p = st.sidebar.text_input("Password", type='password')
+        if st.sidebar.button("Login"):
+            hashed_pswd = make_hashes(p)
+            result = login_user(u, hashed_pswd)
+            if result:
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = u
+                st.rerun()
+            else:
+                st.sidebar.error("වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්!")
+    
+    else: # Sign Up Logic
+        new_user = st.sidebar.text_input("Username")
+        new_password = st.sidebar.text_input("Password", type='password')
+        signup_admin_key = st.sidebar.text_input("Admin Key (Required)", type='password')
+        
+        if st.sidebar.button("Create Account"):
+            if signup_admin_key == "Police@123":
+                add_userdata(new_user, make_hashes(new_password))
+                st.sidebar.success("ගිණුම සාර්ථකව සැකසූ ලදී!")
+                st.sidebar.info("දැන් Login තෝරා ඇතුල් වන්න.")
+            else:
+                st.sidebar.error("Admin Key එක වැරදියි! ඔබට ගිණුමක් සෑදිය නොහැක.")
+    st.stop()
+
+# --- ධුරාවලිය (Hierarchy) ---
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
@@ -76,65 +135,34 @@ hierarchy = {
     }
 }
 
-# --- 4. Sidebar ---
-st.sidebar.title("👮 STF DBMS")
-try:
-    img = Image.open("logo.png")
-    st.sidebar.image(img, use_container_width=True)
-except:
-    st.sidebar.info("Logo not found.")
-
-# Home & Nav Buttons (Fixing Logic)
+# Navigation Controls
 col_h1, col_h2, col_h3 = st.sidebar.columns(3)
 current_idx = tabs_list.index(st.session_state['nav_selection'])
 
-if col_h1.button("🏠 Home"):
-    update_nav(0)
-    st.rerun()
-
+if col_h1.button("🏠 Home"): update_nav(0); st.rerun()
 if col_h2.button("⬅️ Back"):
-    if current_idx > 0:
-        update_nav(current_idx - 1)
-        st.rerun()
-
+    if current_idx > 0: update_nav(current_idx - 1); st.rerun()
 if col_h3.button("➡️ Fwd"):
-    if current_idx < len(tabs_list) - 1:
-        update_nav(current_idx + 1)
-        st.rerun()
+    if current_idx < len(tabs_list) - 1: update_nav(current_idx + 1); st.rerun()
 
-# YouTube Button
-st.sidebar.markdown("---")
-yt_url = "https://www.youtube.com/@STF_SriLanka"
-st.sidebar.link_button("📺 YouTube Live / CCTV", yt_url, use_container_width=True)
 st.sidebar.divider()
-
-if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
-
-if not st.session_state['logged_in']:
-    u = st.sidebar.text_input("User Name")
-    p = st.sidebar.text_input("Password", type='password')
-    if st.sidebar.button("Access"):
-        st.session_state['logged_in'] = True; st.session_state['username'] = u; st.rerun()
-    st.stop()
-
-# Dropdowns
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
 sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", hierarchy[zone_sel][div_sel][main_camp])
 
-admin_key = st.sidebar.text_input("Admin Key", type="password")
-is_admin = (admin_key == "Police@123")
+admin_key_input = st.sidebar.text_input("Edit/Delete Admin Key", type="password")
+is_admin = (admin_key_input == "Police@123")
 
-# --- 5. Main Navigation (Synchronized) ---
-# මෙතන තමයි වැදගත්ම දේ. Radio එකේ index එක session state එකට link කළා.
+if st.sidebar.button("Logout"):
+    st.session_state['logged_in'] = False; st.rerun()
+
+# --- 5. Main Content ---
 current_tab = st.radio("Navigation", tabs_list, 
                        index=tabs_list.index(st.session_state['nav_selection']), 
                        horizontal=True, 
                        key="radio_nav",
                        on_change=lambda: st.session_state.update(nav_selection=st.session_state.radio_nav))
-
-# --- TAB CONTENTS ---
 
 if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළත් කිරීම":
     st.subheader(f"වැටලීම් වාර්තාව - {sub_camp}")
@@ -152,7 +180,7 @@ if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළ
         other_txt = st.text_area("අමතර විස්තර සහ වෙනත් වැටලීම්")
         if st.form_submit_button("දත්ත සුරකින්න"):
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, අයි​ස්, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
+            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
                       (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, liq, goda, sand, suspects, other_txt))
             conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
@@ -183,6 +211,7 @@ elif st.session_state['nav_selection'] == "🔍 වාර්තා (Edit/Delete)
             edited_r.to_sql('detailed_raids', conn, if_exists='replace', index=False)
             st.success("වැටලීම් දත්ත යාවත්කාලීන විය!"); st.rerun()
     else:
+        st.warning("දත්ත වෙනස් කිරීමට Admin Key ඇතුලත් කරන්න.")
         st.dataframe(df_r)
     conn.close()
 
@@ -191,15 +220,6 @@ elif st.session_state['nav_selection'] == "📊 සාරාංශ පිරි�
     conn = sqlite3.connect('police_master_system.db')
     df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
     if not df_f.empty:
-        if is_admin:
-            edited_f = st.data_editor(df_f, num_rows="dynamic", key="summary_ed")
-            if st.button("Update Force Database"):
-                edited_f.to_sql('force_details', conn, if_exists='replace', index=False)
-                st.success("දත්ත යාවත්කාලීන විය!"); st.rerun()
-        else:
-            summary = df_f.groupby('category').sum().reset_index()
-            st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
+        summary = df_f.groupby('category').sum().reset_index()
+        st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
     conn.close()
-
-if st.sidebar.button("Logout"):
-    st.session_state['logged_in'] = False; st.rerun()
