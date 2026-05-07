@@ -5,20 +5,64 @@ import hashlib
 from datetime import datetime
 from PIL import Image
 
-# --- 1. පද්ධති සැකසුම් ---
+# --- 1. පද්ධති සැකසුම් සහ තීම් (Theme) ---
 st.set_page_config(
-    page_title="STF - Security Data Management",
+    page_title="STF - Strategic Data System",
     page_icon="👮",
     layout="wide"
 )
 
-# --- Navigation Logic (Fixing the Sync Issue) ---
-tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
+# Custom CSS for a professional look
+st.markdown("""
+    <style>
+    /* මුළු ඇප් එකේම background එක සහ font එක */
+    .main {
+        background-color: #f0f2f6;
+    }
+    /* Sidebar එකේ පැහැය */
+    .css-1d391kg {
+        background-color: #002b36;
+    }
+    /* බටන් ස්ටයිල් */
+    div.stButton > button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3em;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        background-color: #0056b3;
+        border: 1px solid white;
+    }
+    /* Home, Back, Fwd බටන් වලට විශේෂ ස්ටයිල් */
+    .nav-btn {
+        margin-bottom: 10px;
+    }
+    /* Form එකේ පෙනුම */
+    .stForm {
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    /* Navigation Radio එක Tab එකක් වගේ පේන්න */
+    div.row-widget.stRadio > div {
+        background-color: #e9ecef;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
+# --- Navigation Logic ---
+tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
 if 'nav_selection' not in st.session_state:
     st.session_state['nav_selection'] = tabs_list[0]
 
-# බටන් ක්ලික් කළාම සෙලෙක්ෂන් එක මාරු කරන ෆන්ක්ෂන් එක
 def update_nav(index):
     st.session_state['nav_selection'] = tabs_list[index]
 
@@ -38,8 +82,7 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, zone TEXT, division TEXT, camp TEXT,
                   category TEXT, SSP INTEGER, SP INTEGER, ASP INTEGER, CI INTEGER, IP INTEGER, 
                   SI INTEGER, PS INTEGER, PC INTEGER, row_total INTEGER)''')
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
 
 init_db()
 
@@ -77,44 +120,36 @@ hierarchy = {
 }
 
 # --- 4. Sidebar ---
-st.sidebar.title("👮 STF DBMS")
+st.sidebar.markdown("<h2 style='text-align: center; color: white;'>👮 STF DBMS</h2>", unsafe_allow_html=True)
 try:
     img = Image.open("logo.png")
     st.sidebar.image(img, use_container_width=True)
 except:
     st.sidebar.info("Logo not found.")
 
-# Home & Nav Buttons (Fixing Logic)
+# Navigation Buttons ස්ටයිල් එකට
 col_h1, col_h2, col_h3 = st.sidebar.columns(3)
 current_idx = tabs_list.index(st.session_state['nav_selection'])
 
-if col_h1.button("🏠 Home"):
-    update_nav(0)
-    st.rerun()
+if col_h1.button("🏠"):
+    update_nav(0); st.rerun()
+if col_h2.button("⬅️"):
+    if current_idx > 0: update_nav(current_idx - 1); st.rerun()
+if col_h3.button("➡️"):
+    if current_idx < len(tabs_list) - 1: update_nav(current_idx + 1); st.rerun()
 
-if col_h2.button("⬅️ Back"):
-    if current_idx > 0:
-        update_nav(current_idx - 1)
-        st.rerun()
-
-if col_h3.button("➡️ Fwd"):
-    if current_idx < len(tabs_list) - 1:
-        update_nav(current_idx + 1)
-        st.rerun()
-
-# YouTube Button
 st.sidebar.markdown("---")
 yt_url = "https://www.youtube.com/@STF_SriLanka"
-st.sidebar.link_button("📺 YouTube Live / CCTV", yt_url, use_container_width=True)
+st.sidebar.link_button("📺 YouTube Live / CCTV", yt_url)
 st.sidebar.divider()
 
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
-
 if not st.session_state['logged_in']:
-    u = st.sidebar.text_input("User Name")
-    p = st.sidebar.text_input("Password", type='password')
-    if st.sidebar.button("Access"):
-        st.session_state['logged_in'] = True; st.session_state['username'] = u; st.rerun()
+    st.title("🔐 පද්ධතියට ඇතුළු වන්න")
+    u = st.text_input("User Name")
+    p = st.text_input("Password", type='password')
+    if st.button("Access"):
+        st.session_state['logged_in'] = True; st.rerun()
     st.stop()
 
 # Dropdowns
@@ -123,21 +158,21 @@ div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel]
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
 sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", hierarchy[zone_sel][div_sel][main_camp])
 
-admin_key = st.sidebar.text_input("Admin Key", type="password")
+admin_key = st.sidebar.text_input("🔑 Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
-# --- 5. Main Navigation (Synchronized) ---
-# මෙතන තමයි වැදගත්ම දේ. Radio එකේ index එක session state එකට link කළා.
-current_tab = st.radio("Navigation", tabs_list, 
+# --- 5. Main Content ---
+st.markdown(f"### 📍 දැනට තෝරාගෙන ඇත්තේ: <span style='color: #007bff;'>{sub_camp}</span>", unsafe_allow_html=True)
+
+current_tab = st.radio("පද්ධති මෙනුව", tabs_list, 
                        index=tabs_list.index(st.session_state['nav_selection']), 
-                       horizontal=True, 
-                       key="radio_nav",
+                       horizontal=True, key="radio_nav",
                        on_change=lambda: st.session_state.update(nav_selection=st.session_state.radio_nav))
 
-# --- TAB CONTENTS ---
+st.markdown("---")
 
+# --- TAB CONTENTS (Logic remains same) ---
 if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළත් කිරීම":
-    st.subheader(f"වැටලීම් වාර්තාව - {sub_camp}")
     with st.form("raid_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         ice = c1.number_input("අයිස් (ICE) - ග්‍රෑම්", 0.0)
@@ -148,7 +183,7 @@ if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළ
         sand = c3.number_input("වැලි/ලී වැටලීම්", 0.0)
         suspects = c1.number_input("සැකකරුවන්", 0)
         other_txt = st.text_area("අමතර විස්තර සහ වෙනත් වැටලීම්")
-        if st.form_submit_button("දත්ත සුරකින්න"):
+        if st.form_submit_button("✅ දත්ත සුරකින්න"):
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
             c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
@@ -156,14 +191,13 @@ if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළ
             conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
 
 elif st.session_state['nav_selection'] == "📉 භට පිරිස් දත්ත":
-    st.subheader(f"භට පිරිස් දත්ත - {sub_camp}")
     with st.form("force_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
         ssp = f1.number_input("SSP", 0); sp = f2.number_input("SP", 0); asp = f3.number_input("ASP", 0)
         ci = f1.number_input("CI", 0); ip = f2.number_input("IP", 0); si = f3.number_input("SI", 0)
         ps = f1.number_input("PS", 0); pc = f2.number_input("PC", 0)
         cat = st.selectbox("තත්ත්වය", ["මුළු භට සංඛ්‍යාව", "01 විශේෂ රාජකාරි", "02 නිවාඩු/විවේක"])
-        if st.form_submit_button("යාවත්කාලීන කරන්න"):
+        if st.form_submit_button("🔄 යාවත්කාලීන කරන්න"):
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
             total = ssp+sp+asp+ci+ip+si+ps+pc
             c.execute('''INSERT INTO force_details (date, zone, division, camp, category, SSP, SP, ASP, CI, IP, SI, PS, PC, row_total) 
@@ -172,26 +206,24 @@ elif st.session_state['nav_selection'] == "📉 භට පිරිස් දත
             conn.commit(); conn.close(); st.success("භට පිරිස් දත්ත සුරැකිණි!")
 
 elif st.session_state['nav_selection'] == "🔍 වාර්තා (Edit/Delete)":
-    st.subheader("🔍 දත්ත කළමනාකරණය")
     conn = sqlite3.connect('police_master_system.db')
     df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE zone='{zone_sel}'", conn)
     if is_admin:
-        edited_r = st.data_editor(df_r, num_rows="dynamic", key="raid_ed")
-        if st.button("Update Raid Database"):
+        edited_r = st.data_editor(df_r, num_rows="dynamic", key="raid_ed", use_container_width=True)
+        if st.button("💾 වෙනස්කම් සුරකින්න"):
             edited_r.to_sql('detailed_raids', conn, if_exists='replace', index=False)
-            st.success("වැටලීම් දත්ත යාවත්කාලීන විය!"); st.rerun()
+            st.success("දත්ත යාවත්කාලීන විය!"); st.rerun()
     else:
-        st.dataframe(df_r)
+        st.dataframe(df_r, use_container_width=True)
     conn.close()
 
 elif st.session_state['nav_selection'] == "📊 සාරාංශ පිරික්සුම":
-    st.subheader("📊 කලාපීය/සේනාංක සාරාංශ පිරික්සුම")
     conn = sqlite3.connect('police_master_system.db')
     df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
     if not df_f.empty:
         if is_admin:
-            edited_f = st.data_editor(df_f, num_rows="dynamic", key="summary_ed")
-            if st.button("Update Force Database"):
+            edited_f = st.data_editor(df_f, num_rows="dynamic", key="summary_ed", use_container_width=True)
+            if st.button("💾 Summary Update"):
                 edited_f.to_sql('force_details', conn, if_exists='replace', index=False)
                 st.success("දත්ත යාවත්කාලීන විය!"); st.rerun()
         else:
@@ -199,5 +231,5 @@ elif st.session_state['nav_selection'] == "📊 සාරාංශ පිරි�
             st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
     conn.close()
 
-if st.sidebar.button("Logout"):
+if st.sidebar.button("🔴 Logout"):
     st.session_state['logged_in'] = False; st.rerun()
