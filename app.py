@@ -12,6 +12,16 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- Navigation Logic (Tabs අතර එහා මෙහා යාමට) ---
+if 'active_tab' not in st.session_state:
+    st.session_state['active_tab'] = 0
+
+def change_tab(direction):
+    if direction == "next":
+        st.session_state['active_tab'] = (st.session_state['active_tab'] + 1) % 4
+    elif direction == "back":
+        st.session_state['active_tab'] = (st.session_state['active_tab'] - 1) % 4
+
 # --- 2. පද්ධති ආරක්ෂක කාර්යයන් ---
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
@@ -32,17 +42,16 @@ def init_db():
                   mandrax REAL, dambul REAL, illegal_liquor REAL, goda REAL,
                   sand_timber REAL, tobacco REAL, suspects INTEGER,
                   other_records TEXT)''')
-    
     c.execute('''CREATE TABLE IF NOT EXISTS force_details 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, zone TEXT, division TEXT, camp TEXT,
                   category TEXT, SSP INTEGER, SP INTEGER, ASP INTEGER, CI INTEGER, IP INTEGER, 
-                  SI INTEGER, PS INTEGER, PSD INTEGER, PC INTEGER, PCD INTEGER, row_total INTEGER)''')
+                  SI INTEGER, PS INTEGER, PC INTEGER, row_total INTEGER)''')
     conn.commit()
     conn.close()
 
 init_db()
 
-# --- 3. ධුරාවලිය ---
+# --- 3. ධුරාවලිය (Hierarchy) ---
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
@@ -83,29 +92,30 @@ try:
 except:
     st.sidebar.info("Logo not found.")
 
-# Home & Navigation Buttons (Under Logo)
+# Home & Nav Buttons (ලෝගෝ එක යටින්)
 col_h1, col_h2, col_h3 = st.sidebar.columns(3)
 if col_h1.button("🏠 Home"):
+    st.session_state['active_tab'] = 0
     st.rerun()
 if col_h2.button("⬅️ Back"):
-    st.info("පසුපසට යාමට Browser එකේ Back Button එක පාවිච්චි කරන්න.")
+    change_tab("back")
+    st.rerun()
 if col_h3.button("➡️ Fwd"):
-    st.info("ඉදිරියට යාමට Browser එකේ Forward Button එක පාවිච්චි කරන්න.")
+    change_tab("next")
+    st.rerun()
 
 st.sidebar.divider()
 
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    menu = ["Login", "SignUp"]
-    choice = st.sidebar.selectbox("Login Menu", menu)
     u = st.sidebar.text_input("User Name")
     p = st.sidebar.text_input("Password", type='password')
     if st.sidebar.button("Access"):
         st.session_state['logged_in'] = True; st.session_state['username'] = u; st.rerun()
     st.stop()
 
-# Location Selection
+# Selections
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
@@ -114,11 +124,16 @@ sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", h
 admin_key = st.sidebar.text_input("Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
-# --- 5. Tabs ---
-tab1, tab2, tab3, tab4 = st.tabs(["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"])
+# --- 5. Tabs Layout (Synced with Session State) ---
+tab_titles = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
+# මෙතනින් තමයි බටන් එක එබුවම active tab එක මාරු වෙන්නේ
+st.session_state['tab_select'] = tab_titles[st.session_state['active_tab']]
+
+# Tabs display
+tabs = st.tabs(tab_titles)
 
 # --- TAB 1: Raid Entry ---
-with tab1:
+with tabs[0]:
     st.subheader(f"වැටලීම් වාර්තාව - {sub_camp}")
     with st.form("raid_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
@@ -138,7 +153,7 @@ with tab1:
             conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
 
 # --- TAB 2: Force Entry ---
-with tab2:
+with tabs[1]:
     st.subheader(f"භට පිරිස් දත්ත - {sub_camp}")
     with st.form("force_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
@@ -153,11 +168,10 @@ with tab2:
                       (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, (ssp+sp+asp+ci+ip+si+ps+pc)))
             conn.commit(); conn.close(); st.success("භට පිරිස් දත්ත සුරැකිණි!")
 
-# --- TAB 3: Edit/Delete Section ---
-with tab3:
+# --- TAB 3: Edit/Delete ---
+with tabs[2]:
     st.subheader("🔍 දත්ත කළමනාකරණය")
     conn = sqlite3.connect('police_master_system.db')
-    
     st.write("### 🕵️ වැටලීම් වාර්තා")
     df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE zone='{zone_sel}'", conn)
     if is_admin:
@@ -169,24 +183,20 @@ with tab3:
         st.dataframe(df_r)
     conn.close()
 
-# --- TAB 4: Summary with Delete Option ---
-with tab4:
-    st.subheader("📊 කලාපීය/සේනාංක සාරාංශ පිරික්සුම")
+# --- TAB 4: Summary ---
+with tabs[3]:
+    st.subheader("📊 සාරාංශ පිරික්සුම")
     conn = sqlite3.connect('police_master_system.db')
     df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
-    
     if not df_f.empty:
         if is_admin:
-            st.warning("Admin Mode: ඔබට සාරාංශ ගත දත්ත මෙතැනින් සංස්කරණය හෝ මකා දැමීම (Delete) කළ හැක.")
             edited_f = st.data_editor(df_f, num_rows="dynamic", key="summary_ed")
             if st.button("Summary Update/Delete"):
                 edited_f.to_sql('force_details', conn, if_exists='replace', index=False)
-                st.success("දත්ත යාවත්කාලීන විය/මැකී ගියේය!"); st.rerun()
+                st.success("දත්ත යාවත්කාලීන විය!"); st.rerun()
         else:
             summary = df_f.groupby('category').sum().reset_index()
             st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
-    else:
-        st.info("දත්ත නොමැත.")
     conn.close()
 
 if st.sidebar.button("Logout"):
