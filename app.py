@@ -13,14 +13,10 @@ st.set_page_config(
 )
 
 # --- Navigation Logic ---
-# ටැබ් හතරේ නම් ටික
 tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
 
 if 'active_tab_index' not in st.session_state:
     st.session_state['active_tab_index'] = 0
-
-def set_tab(index):
-    st.session_state['active_tab_index'] = index
 
 # --- 2. පද්ධති ආරක්ෂක කාර්යයන් ---
 def init_db():
@@ -84,7 +80,7 @@ try:
 except:
     st.sidebar.info("Logo (logo.png) not found.")
 
-# Home & Nav Buttons (වැඩ කරන විදිහට හැදුවා)
+# Navigation Buttons
 col_h1, col_h2, col_h3 = st.sidebar.columns(3)
 if col_h1.button("🏠 Home"):
     st.session_state['active_tab_index'] = 0
@@ -100,6 +96,10 @@ if col_h3.button("➡️ Fwd"):
         st.session_state['active_tab_index'] += 1
         st.rerun()
 
+# YouTube Button (අලුතින් එකතු කළා)
+st.sidebar.markdown("---")
+yt_url = "https://www.youtube.com/@STF_SriLanka" # මෙතනට ඔයාගේ link එක දාන්න
+st.sidebar.link_button("📺 YouTube Live / CCTV", yt_url, use_container_width=True)
 st.sidebar.divider()
 
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
@@ -120,10 +120,8 @@ sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", h
 admin_key = st.sidebar.text_input("Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
-# --- 5. Navigation Control (Tabs වෙනුවට Radio පාවිච්චි කරලා ලස්සන කළා) ---
-current_tab = st.radio("", tabs_list, index=st.session_state['active_tab_index'], horizontal=True, key="main_nav")
-
-# Radio එකෙන් මාරු වෙද්දී index එක update කරනවා
+# --- 5. Main Navigation Control ---
+current_tab = st.radio("", tabs_list, index=st.session_state['active_tab_index'], horizontal=True)
 st.session_state['active_tab_index'] = tabs_list.index(current_tab)
 
 # --- TAB CONTENTS ---
