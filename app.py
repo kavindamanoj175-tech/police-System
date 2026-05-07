@@ -143,7 +143,7 @@ if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළ
         ice = c1.number_input("අයිස් (ICE) - ග්‍රෑම්", 0.0)
         k_ganja = c2.number_input("කේරළ ගංජා - කි.ග්‍රෑ", 0.0)
         heroin = c3.number_input("හෙරොයින් - ග්‍රෑම්", 0.0)
-        tablet = c4.number_input(“මත් කරල් - ග්‍රෑම්", 0.0)
+        tablet = c4.number_input("මත් කරල් - ග්‍රෑම්", 0.0)
         liq = c1.number_input("මත්පැන් (මිලි ලීටර්)”, 0.0)
         goda = c2.number_input("ගෝඩා (ලීටර්)", 0.0)
         sand = c3.number_input("වැලි වැටලීම්", 0.0)
