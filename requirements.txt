@@ -1,11 +1,6 @@
 streamlit
 pandas
 plotly
-pillow
+Pillow
 xlsxwriter
-st-gsheets-connection
-pandas
-streamlit
-streamlit-gsheets-connection
-pandas
 st-gsheets-connection
