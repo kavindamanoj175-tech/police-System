@@ -12,17 +12,17 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Navigation Logic ---
-# ටැබ් හතරේ නම් ටික
+# --- Navigation Logic (Fixing the Sync Issue) ---
 tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
 
-if 'active_tab_index' not in st.session_state:
-    st.session_state['active_tab_index'] = 0
+if 'nav_selection' not in st.session_state:
+    st.session_state['nav_selection'] = tabs_list[0]
 
-def set_tab(index):
-    st.session_state['active_tab_index'] = index
+# බටන් ක්ලික් කළාම සෙලෙක්ෂන් එක මාරු කරන ෆන්ක්ෂන් එක
+def update_nav(index):
+    st.session_state['nav_selection'] = tabs_list[index]
 
-# --- 2. පද්ධති ආරක්ෂක කාර්යයන් ---
+# --- 2. Database Init ---
 def init_db():
     conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
     c = conn.cursor()
@@ -82,24 +82,30 @@ try:
     img = Image.open("logo.png")
     st.sidebar.image(img, use_container_width=True)
 except:
-    st.sidebar.info("Logo (logo.png) not found.")
+    st.sidebar.info("Logo not found.")
 
-# Home & Nav Buttons (වැඩ කරන විදිහට හැදුවා)
+# Home & Nav Buttons (Fixing Logic)
 col_h1, col_h2, col_h3 = st.sidebar.columns(3)
+current_idx = tabs_list.index(st.session_state['nav_selection'])
+
 if col_h1.button("🏠 Home"):
-    st.session_state['active_tab_index'] = 0
+    update_nav(0)
     st.rerun()
 
 if col_h2.button("⬅️ Back"):
-    if st.session_state['active_tab_index'] > 0:
-        st.session_state['active_tab_index'] -= 1
+    if current_idx > 0:
+        update_nav(current_idx - 1)
         st.rerun()
 
 if col_h3.button("➡️ Fwd"):
-    if st.session_state['active_tab_index'] < len(tabs_list) - 1:
-        st.session_state['active_tab_index'] += 1
+    if current_idx < len(tabs_list) - 1:
+        update_nav(current_idx + 1)
         st.rerun()
 
+# YouTube Button
+st.sidebar.markdown("---")
+yt_url = "https://www.youtube.com/@STF_SriLanka"
+st.sidebar.link_button("📺 YouTube Live / CCTV", yt_url, use_container_width=True)
 st.sidebar.divider()
 
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
@@ -111,7 +117,7 @@ if not st.session_state['logged_in']:
         st.session_state['logged_in'] = True; st.session_state['username'] = u; st.rerun()
     st.stop()
 
-# Location Selections
+# Dropdowns
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
@@ -120,34 +126,38 @@ sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", h
 admin_key = st.sidebar.text_input("Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
-# --- 5. Navigation Control (Tabs වෙනුවට Radio පාවිච්චි කරලා ලස්සන කළා) ---
-current_tab = st.radio("", tabs_list, index=st.session_state['active_tab_index'], horizontal=True, key="main_nav")
-
-# Radio එකෙන් මාරු වෙද්දී index එක update කරනවා
-st.session_state['active_tab_index'] = tabs_list.index(current_tab)
+# --- 5. Main Navigation (Synchronized) ---
+# මෙතන තමයි වැදගත්ම දේ. Radio එකේ index එක session state එකට link කළා.
+current_tab = st.radio("Navigation", tabs_list, 
+                       index=tabs_list.index(st.session_state['nav_selection']), 
+                       horizontal=True, 
+                       key="radio_nav",
+                       on_change=lambda: st.session_state.update(nav_selection=st.session_state.radio_nav))
 
 # --- TAB CONTENTS ---
 
-if current_tab == "📝 වැටලීම් ඇතුළත් කිරීම":
+if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළත් කිරීම":
     st.subheader(f"වැටලීම් වාර්තාව - {sub_camp}")
     with st.form("raid_form", clear_on_submit=True):
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         ice = c1.number_input("අයිස් (ICE) - ග්‍රෑම්", 0.0)
         k_ganja = c2.number_input("කේරළ ගංජා - කි.ග්‍රෑ", 0.0)
         heroin = c3.number_input("හෙරොයින් - ග්‍රෑම්", 0.0)
-        liq = c1.number_input("මත්පැන් (බෝතල්)", 0.0)
+        tablet = c4.number_input(“මත් කරල් - ග්‍රෑම්", 0.0)
+        liq = c1.number_input("මත්පැන් (මිලි ලීටර්)”, 0.0)
         goda = c2.number_input("ගෝඩා (ලීටර්)", 0.0)
-        sand = c3.number_input("වැලි/ලී වැටලීම්", 0.0)
+        sand = c3.number_input("වැලි වැටලීම්", 0.0)
+        wood = c4.number_input(“දැව වැටලීම්", 0.0)
         suspects = c1.number_input("සැකකරුවන්", 0)
         other_txt = st.text_area("අමතර විස්තර සහ වෙනත් වැටලීම්")
         if st.form_submit_button("දත්ත සුරකින්න"):
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
+            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, අයිස්, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
                       (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, liq, goda, sand, suspects, other_txt))
             conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
 
-elif current_tab == "📉 භට පිරිස් දත්ත":
+elif st.session_state['nav_selection'] == "📉 භට පිරිස් දත්ත":
     st.subheader(f"භට පිරිස් දත්ත - {sub_camp}")
     with st.form("force_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
@@ -163,7 +173,7 @@ elif current_tab == "📉 භට පිරිස් දත්ත":
                       (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, total))
             conn.commit(); conn.close(); st.success("භට පිරිස් දත්ත සුරැකිණි!")
 
-elif current_tab == "🔍 වාර්තා (Edit/Delete)":
+elif st.session_state['nav_selection'] == "🔍 වාර්තා (Edit/Delete)":
     st.subheader("🔍 දත්ත කළමනාකරණය")
     conn = sqlite3.connect('police_master_system.db')
     df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE zone='{zone_sel}'", conn)
@@ -176,7 +186,7 @@ elif current_tab == "🔍 වාර්තා (Edit/Delete)":
         st.dataframe(df_r)
     conn.close()
 
-elif current_tab == "📊 සාරාංශ පිරික්සුම":
+elif st.session_state['nav_selection'] == "📊 සාරාංශ පිරික්සුම":
     st.subheader("📊 කලාපීය/සේනාංක සාරාංශ පිරික්සුම")
     conn = sqlite3.connect('police_master_system.db')
     df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
