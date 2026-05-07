@@ -58,6 +58,7 @@ def get_pending_users():
 init_db()
 
 # --- 3. ධුරාවලිය (Hierarchy Data) ---
+# මෙතනට ඔයා කියපු උප කදවුරු දෙක ඇතුළත් කළා
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
@@ -129,7 +130,14 @@ st.title("🚨 Special Task Force - Data Management System")
 # Global Selections
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
-camp_sel = st.sidebar.selectbox("කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
+
+# ප්‍රධාන කදවුර සහ උප කදවුරු එකම list එකකට ගැනීම
+camps_list = []
+for main_camp, sub_camps in hierarchy[zone_sel][div_sel].items():
+    camps_list.append(main_camp)
+    camps_list.extend(sub_camps)
+
+camp_sel = st.sidebar.selectbox("කදවුර / උප කදවුර", camps_list)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 දත්ත ඇතුළත් කිරීම", "🔍 විස්තරාත්මක වාර්තා (Edit/Delete)", "📊 සාරාංශ ගත වාර්තා", "📝 සටහන් පොත"])
 
@@ -180,7 +188,6 @@ with tab2:
         if is_admin:
             st.info("💡 Admin Mode: ඔබට දත්ත මත කෙලින්ම Click කර Edit කිරීමට හෝ පේළි තෝරා Delete කිරීමට හැක. ඉන්පසු පහත බටන් එක ඔබන්න.")
             
-            # මෙන්න මේක තමයි Edit/Delete Table එක
             edited_df = st.data_editor(
                 df, 
                 num_rows="dynamic", 
@@ -192,9 +199,7 @@ with tab2:
             if st.button("පද්ධතිය යාවත්කාලීන කරන්න (Update/Delete)", type="primary"):
                 try:
                     conn = sqlite3.connect('police_master_system.db')
-                    # පරණ දත්ත ඉවත් කර Edit කරපු අලුත් දත්ත ඇතුළත් කිරීම
                     cursor = conn.cursor()
-                    # දැනට තෝරාගෙන ඇති Query එකට අදාළ දත්ත පමණක් මකා අලුත් ඒවා දමයි
                     delete_ids = df['id'].tolist()
                     cursor.execute(f'DELETE FROM detailed_raids WHERE id IN ({",".join(map(str, delete_ids))})')
                     edited_df.to_sql('detailed_raids', conn, if_exists='append', index=False)
@@ -208,7 +213,6 @@ with tab2:
             st.dataframe(df, use_container_width=True, hide_index=True)
             st.warning("⚠️ දත්ත වෙනස් කිරීමට හෝ මැකීමට Admin Key එක ඇතුළත් කරන්න.")
 
-        # Excel Download
         output = io.BytesIO()
         df.to_excel(output, index=False, engine='xlsxwriter')
         st.download_button(label="📥 Excel වාර්තාව බාගත කරන්න", data=output.getvalue(), file_name=f"STF_Report.xlsx")
