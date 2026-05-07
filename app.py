@@ -201,7 +201,7 @@ with tab4:
         st.info(f"අවසන් වරට දත්ත යාවත්කාලීන වූ දිනය: {latest_date.date()}")
         
         # Summary calculation
-        sum_df = df_force[df_force['date'] == latest_date].groupby('category').sum().reset_index()
+        sum_df = df_force[df_force['date'] == latest_date].groupby('category')[['SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PSD', 'PC', 'PCD', 'row_total']].sum().reset_index()
         st.table(sum_df[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PSD', 'PC', 'PCD', 'row_total']])
         
         fig = px.pie(sum_df, values='row_total', names='category', title="භට පිරිස් ව්‍යාප්තිය")
