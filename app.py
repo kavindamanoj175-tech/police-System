@@ -144,15 +144,15 @@ if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළ
         k_ganja = c2.number_input("කේරළ ගංජා - කි.ග්‍රෑ", 0.0)
         heroin = c3.number_input("හෙරොයින් - ග්‍රෑම්", 0.0)
         tablet = c4.number_input("මත් කරල් - ග්‍රෑම්", 0.0)
-        liq = c1.number_input("මත්පැන් (මිලි ලීටර්)”, 0.0)
+        liq = c1.number_input("මත්පැන් (මිලි ලීටර්)", 0.0)
         goda = c2.number_input("ගෝඩා (ලීටර්)", 0.0)
         sand = c3.number_input("වැලි වැටලීම්", 0.0)
-        wood = c4.number_input(“දැව වැටලීම්", 0.0)
+        wood = c4.number_input("දැව වැටලීම්", 0.0)
         suspects = c1.number_input("සැකකරුවන්", 0)
         other_txt = st.text_area("අමතර විස්තර සහ වෙනත් වැටලීම්")
         if st.form_submit_button("දත්ත සුරකින්න"):
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, අයිස්, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
+            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, අයි​ස්, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
                       (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, liq, goda, sand, suspects, other_txt))
             conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
