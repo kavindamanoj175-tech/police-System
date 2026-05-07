@@ -12,25 +12,17 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Navigation Logic (Tabs අතර එහා මෙහා යාමට) ---
-if 'active_tab' not in st.session_state:
-    st.session_state['active_tab'] = 0
+# --- Navigation Logic ---
+# ටැබ් හතරේ නම් ටික
+tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
 
-def change_tab(direction):
-    if direction == "next":
-        st.session_state['active_tab'] = (st.session_state['active_tab'] + 1) % 4
-    elif direction == "back":
-        st.session_state['active_tab'] = (st.session_state['active_tab'] - 1) % 4
+if 'active_tab_index' not in st.session_state:
+    st.session_state['active_tab_index'] = 0
+
+def set_tab(index):
+    st.session_state['active_tab_index'] = index
 
 # --- 2. පද්ධති ආරක්ෂක කාර්යයන් ---
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
-
-def check_hashes(password, hashed_text):
-    if make_hashes(password) == hashed_text:
-        return hashed_text
-    return False
-
 def init_db():
     conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
     c = conn.cursor()
@@ -90,19 +82,23 @@ try:
     img = Image.open("logo.png")
     st.sidebar.image(img, use_container_width=True)
 except:
-    st.sidebar.info("Logo not found.")
+    st.sidebar.info("Logo (logo.png) not found.")
 
-# Home & Nav Buttons (ලෝගෝ එක යටින්)
+# Home & Nav Buttons (වැඩ කරන විදිහට හැදුවා)
 col_h1, col_h2, col_h3 = st.sidebar.columns(3)
 if col_h1.button("🏠 Home"):
-    st.session_state['active_tab'] = 0
+    st.session_state['active_tab_index'] = 0
     st.rerun()
+
 if col_h2.button("⬅️ Back"):
-    change_tab("back")
-    st.rerun()
+    if st.session_state['active_tab_index'] > 0:
+        st.session_state['active_tab_index'] -= 1
+        st.rerun()
+
 if col_h3.button("➡️ Fwd"):
-    change_tab("next")
-    st.rerun()
+    if st.session_state['active_tab_index'] < len(tabs_list) - 1:
+        st.session_state['active_tab_index'] += 1
+        st.rerun()
 
 st.sidebar.divider()
 
@@ -115,7 +111,7 @@ if not st.session_state['logged_in']:
         st.session_state['logged_in'] = True; st.session_state['username'] = u; st.rerun()
     st.stop()
 
-# Selections
+# Location Selections
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
@@ -124,16 +120,15 @@ sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", h
 admin_key = st.sidebar.text_input("Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
-# --- 5. Tabs Layout (Synced with Session State) ---
-tab_titles = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"]
-# මෙතනින් තමයි බටන් එක එබුවම active tab එක මාරු වෙන්නේ
-st.session_state['tab_select'] = tab_titles[st.session_state['active_tab']]
+# --- 5. Navigation Control (Tabs වෙනුවට Radio පාවිච්චි කරලා ලස්සන කළා) ---
+current_tab = st.radio("", tabs_list, index=st.session_state['active_tab_index'], horizontal=True, key="main_nav")
 
-# Tabs display
-tabs = st.tabs(tab_titles)
+# Radio එකෙන් මාරු වෙද්දී index එක update කරනවා
+st.session_state['active_tab_index'] = tabs_list.index(current_tab)
 
-# --- TAB 1: Raid Entry ---
-with tabs[0]:
+# --- TAB CONTENTS ---
+
+if current_tab == "📝 වැටලීම් ඇතුළත් කිරීම":
     st.subheader(f"වැටලීම් වාර්තාව - {sub_camp}")
     with st.form("raid_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
@@ -152,8 +147,7 @@ with tabs[0]:
                       (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, liq, goda, sand, suspects, other_txt))
             conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
 
-# --- TAB 2: Force Entry ---
-with tabs[1]:
+elif current_tab == "📉 භට පිරිස් දත්ත":
     st.subheader(f"භට පිරිස් දත්ත - {sub_camp}")
     with st.form("force_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
@@ -163,35 +157,33 @@ with tabs[1]:
         cat = st.selectbox("තත්ත්වය", ["මුළු භට සංඛ්‍යාව", "01 විශේෂ රාජකාරි", "02 නිවාඩු/විවේක"])
         if st.form_submit_button("යාවත්කාලීන කරන්න"):
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
+            total = ssp+sp+asp+ci+ip+si+ps+pc
             c.execute('''INSERT INTO force_details (date, zone, division, camp, category, SSP, SP, ASP, CI, IP, SI, PS, PC, row_total) 
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                      (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, (ssp+sp+asp+ci+ip+si+ps+pc)))
+                      (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, total))
             conn.commit(); conn.close(); st.success("භට පිරිස් දත්ත සුරැකිණි!")
 
-# --- TAB 3: Edit/Delete ---
-with tabs[2]:
+elif current_tab == "🔍 වාර්තා (Edit/Delete)":
     st.subheader("🔍 දත්ත කළමනාකරණය")
     conn = sqlite3.connect('police_master_system.db')
-    st.write("### 🕵️ වැටලීම් වාර්තා")
     df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE zone='{zone_sel}'", conn)
     if is_admin:
         edited_r = st.data_editor(df_r, num_rows="dynamic", key="raid_ed")
-        if st.button("Raid Data Update/Delete"):
+        if st.button("Update Raid Database"):
             edited_r.to_sql('detailed_raids', conn, if_exists='replace', index=False)
-            st.success("වෙනස්කම් සුරැකිණි!"); st.rerun()
+            st.success("වැටලීම් දත්ත යාවත්කාලීන විය!"); st.rerun()
     else:
         st.dataframe(df_r)
     conn.close()
 
-# --- TAB 4: Summary ---
-with tabs[3]:
-    st.subheader("📊 සාරාංශ පිරික්සුම")
+elif current_tab == "📊 සාරාංශ පිරික්සුම":
+    st.subheader("📊 කලාපීය/සේනාංක සාරාංශ පිරික්සුම")
     conn = sqlite3.connect('police_master_system.db')
     df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
     if not df_f.empty:
         if is_admin:
             edited_f = st.data_editor(df_f, num_rows="dynamic", key="summary_ed")
-            if st.button("Summary Update/Delete"):
+            if st.button("Update Force Database"):
                 edited_f.to_sql('force_details', conn, if_exists='replace', index=False)
                 st.success("දත්ත යාවත්කාලීන විය!"); st.rerun()
         else:
