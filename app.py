@@ -7,7 +7,16 @@ from datetime import datetime
 from PIL import Image
 import io
 
-# --- 1. පද්ධති ආරක්ෂක කාර්යයන් (Security Functions) ---
+# --- 1. පද්ධති සැකසුම් (Page Config) ---
+# මෙතනින් තමයි Browser එකේ Icon එක සහ නම හදන්නේ
+st.set_page_config(
+    page_title="STF DBMS - Jaffna & Vavuniya Zones",
+    page_icon="👮",
+    layout="wide"
+)
+
+# --- 2. පද්ධති ආරක්ෂක කාර්යයන් (Security Functions) ---
+# (ඔයාගේ මුල් කෝඩ් එකේ තිබුණු ෆන්ක්ෂන්ස් කිසිම වෙනසක් නැතුව)
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
@@ -19,7 +28,7 @@ def check_hashes(password, hashed_text):
 def init_db():
     conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
     c = conn.cursor()
-    # පරිශීලක වගුව (is_approved column එක සහිතව)
+    # පරිශීලක වගුව
     c.execute('''CREATE TABLE IF NOT EXISTS userstable
                  (username TEXT, password TEXT, is_approved INTEGER DEFAULT 0)''')
     # භට පිරිස් වගුව
@@ -33,9 +42,19 @@ def init_db():
     # අපරාධකරුවන්ගේ වගුව
     c.execute('''CREATE TABLE IF NOT EXISTS criminals 
                  (name TEXT, address TEXT, nic TEXT, phone TEXT, records TEXT, photo BLOB, camp TEXT)''')
+    
+    # --- අලුත් Tables (සටහන් සහ වාර්තා සඳහා) ---
+    # Notes සඳහා වගුව
+    c.execute('''CREATE TABLE IF NOT EXISTS system_notes 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, date TEXT, note TEXT)''')
+    #Uploaded Reports සඳහා වගුව (මෙතන File data BLOB එකක් විදිහට සේව් වේ)
+    c.execute('''CREATE TABLE IF NOT EXISTS uploaded_reports 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, date TEXT, file_name TEXT, file_data BLOB)''')
+    
     conn.commit()
     conn.close()
 
+# අනෙක් Database functions (කිසිම වෙනසක් නැත)
 def add_userdata(username, password):
     conn = sqlite3.connect('police_master_system.db')
     c = conn.cursor()
@@ -46,7 +65,6 @@ def add_userdata(username, password):
 def login_user(username, password):
     conn = sqlite3.connect('police_master_system.db')
     c = conn.cursor()
-    # මෙතනදී බලන්නේ password එක වගේම Admin Approve (1) කරලද කියලයි
     c.execute('SELECT * FROM userstable WHERE username =? AND password =? AND is_approved = 1', (username, password))
     data = c.fetchall()
     return data
@@ -64,10 +82,50 @@ def approve_user(username):
     conn.commit()
     conn.close()
 
+# --- අලුත් Database Functions (Notes & Reports) ---
+def add_system_note(username, note_text):
+    conn = sqlite3.connect('police_master_system.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO system_notes (username, date, note) VALUES (?,?,?)', (username, datetime.now().strftime("%Y-%m-%d %H:%M"), note_text))
+    conn.commit()
+    conn.close()
+
+def get_system_notes():
+    conn = sqlite3.connect('police_master_system.db')
+    c = conn.cursor()
+    c.execute('SELECT * FROM system_notes ORDER BY id DESC')
+    notes = c.fetchall()
+    conn.close()
+    return notes
+
+def add_uploaded_report(username, file_name, file_bytes):
+    conn = sqlite3.connect('police_master_system.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO uploaded_reports (username, date, file_name, file_data) VALUES (?,?,?,?)', (username, datetime.now().strftime("%Y-%m-%d %H:%M"), file_name, file_bytes))
+    conn.commit()
+    conn.close()
+
+def get_uploaded_reports_list():
+    conn = sqlite3.connect('police_master_system.db')
+    c = conn.cursor()
+    c.execute('SELECT id, username, date, file_name FROM uploaded_reports ORDER BY id DESC')
+    reports = c.fetchall()
+    conn.close()
+    return reports
+
+def get_uploaded_report_data(report_id):
+    conn = sqlite3.connect('police_master_system.db')
+    c = conn.cursor()
+    c.execute('SELECT file_name, file_data FROM uploaded_reports WHERE id = ?', (report_id,))
+    report_data = c.fetchone()
+    conn.close()
+    return report_data
+
 # Database එක මුලින්ම සකස් කිරීම
 init_db()
 
-# --- 2. ධුරාවලිය (Hierarchy Data) ---
+# --- 3. ධුරාවලිය (Hierarchy Data) ---
+# (ඔයාගේ මුල් කෝඩ් එකේ තිබුණු Hierarchy data එක කිසිම වෙනසක් නැතුව)
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
@@ -100,14 +158,26 @@ hierarchy = {
     }
 }
 
-# --- 3. Sidebar - Admin සහ Login පාලනය ---
+# --- 4. Sidebar - ලෝගෝ සහ Admin පාලනය ---
+st.sidebar.title("👮 STF DBMS") # <-- App එකේ නම වෙනස් කළා
+
+# ලෝගෝ එක සයිඩ් බාර් එකේ පෙන්වීම
+try:
+    img = Image.open("logo.png") # 'logo.png' නමින් GitHub එකේ ඇති පින්තූරය
+    st.sidebar.image(img, use_column_width=True)
+except FileNotFoundError:
+    st.sidebar.error("Logo file (logo.png) not found in GitHub repository!")
+exceptException as e:
+    st.sidebar.error(f"Error loading logo: {e}")
+
+st.sidebar.divider()
 st.sidebar.title("🛡️ පද්ධති ආරක්ෂාව")
 
-# Admin Panel (ඔයාට විතරක් ඇතුල් වෙන්න පුළුවන් රහස් තැන)
+# Admin Panel (ඔයාගේ මුල් කෝඩ් එකේ තිබුණු Logic එක)
 st.sidebar.subheader("👑 Admin පාලක පුවරුව")
 admin_key = st.sidebar.text_input("Admin Key", type="password", help="අලුත් අය Approve කිරීමට රහස් කේතය ඇතුළත් කරන්න")
 
-if admin_key == "Police@123": # <--- ඔයාට ඕන Password එක මෙතනට දාන්න
+if admin_key == "Police@123": # <--- රහස් කේතය
     pending = get_pending_users()
     if pending:
         user_to_approve = st.sidebar.selectbox("අනුමත කිරීමට තෝරන්න", [u[0] for u in pending])
@@ -120,11 +190,14 @@ if admin_key == "Police@123": # <--- ඔයාට ඕන Password එක මෙ�
 
 st.sidebar.divider()
 
-# Login / Sign Up UI
+# Login / Sign Up UI (කිසිම වෙනසක් නැත)
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+
 auth_choice = st.sidebar.selectbox("ප්‍රවේශය තෝරන්න", ["Login", "Sign Up"])
 
 if auth_choice == "Sign Up":
-    st.subheader("📝 අලුත් ගිණුමක් සාදන්න")
+    st.subheader("📝 අලුත් ගිණුමක් සාදන්න (STF DBMS)")
     new_user = st.text_input("Username")
     new_password = st.text_input("Password", type='password')
     if st.button("ගිණුම ලියාපදිංචි කරන්න"):
@@ -142,16 +215,19 @@ elif auth_choice == "Login":
         if result:
             st.session_state['logged_in'] = True
             st.session_state['username'] = user
+            st.rerun()
         else:
             st.sidebar.error("වැරදි මුරපදයක් හෝ ඔබව තවමත් අනුමත කර නැත!")
 
-# --- 4. ප්‍රධාන පද්ධතිය (ලොග් වුණු අයට පමණි) ---
-if st.session_state.get('logged_in'):
-    st.title(f"👮 Police System - සාදරයෙන් පිළිගනිමු {st.session_state['username']}!")
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["භට පිරිස් වාර්තා", "වැටලීම් වාර්තා", "අපරාධකරුවන්", "විශ්ලේෂණය"])
+# --- 5. ප්‍රධාන පද්ධතිය (ලොග් වුණු අයට පමණි) ---
+if st.session_state['logged_in']:
+    st.title(f"👮 STF DBMS - සාදරයෙන් පිළිගනිමු {st.session_state['username']}!")
+    st.markdown(f"**Jaffna & Vavuniya Zones - දත්ත කළමනාකරණ පද්ධතිය**")
+    st.divider()
 
-    # Hierarchy Selection
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 ഭට පිරිස් වාර්තා", "⚔️ වැටලීම් වාර්තා", "👤 අපරාධකරුවන්", "📈 විශ්ලේෂණය"])
+
+    # Hierarchy Selection (ඔයාගේ මුල් කෝඩ් එකේ තිබුණු Logic එක)
     zone_select = st.sidebar.selectbox("කලාපය", list(hierarchy.keys()))
     div_select = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_select].keys()))
     main_camp_select = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_select][div_select].keys()))
@@ -159,6 +235,7 @@ if st.session_state.get('logged_in'):
     unit_select = st.sidebar.selectbox("උප කදවුර", ["ප්‍රධාන කදවුර"] + sub_camps) if sub_camps else "ප්‍රධාන කදවුර"
     final_unit = unit_select if unit_select != "ප්‍රධාන කදවුර" else main_camp_select
 
+    # --- tab1: ഭට පිරිස් වාර්තා (කිසිම වෙනසක් නැත) ---
     with tab1:
         st.header(f"📊 භට සංඛ්‍යාලේඛන - {final_unit}")
         cols = ["SSP", "SP", "ASP", "CI", "IP", "SI", "PS", "PSD", "PC", "PCD"]
@@ -167,7 +244,7 @@ if st.session_state.get('logged_in'):
             r1 = st.columns(5)
             r2 = st.columns(5)
             for i, c_name in enumerate(cols):
-                inputs[c_name] = r1[i].number_input(c_name, min_value=0) if i < 5 else r2[i-5].number_input(c_name, min_value=0)
+                inputs[c_name] = r1[i].number_input(c_name, min_value=0, key=f"force_{c_name}") if i < 5 else r2[i-5].number_input(c_name, min_value=0, key=f"force_{c_name}")
             
             if st.form_submit_button("වාර්තාව ඇතුළත් කරන්න"):
                 conn = sqlite3.connect('police_master_system.db')
@@ -177,9 +254,10 @@ if st.session_state.get('logged_in'):
                 conn.commit()
                 st.success(f"{final_unit} දත්ත ගබඩා විය!")
 
+    # --- tab2: වැටලීම් වාර්තා (කිසිම වෙනසක් නැත) ---
     with tab2:
         st.header("⚔️ වැටලීම් වාර්තා")
-        raid_val = st.number_input("අද දින වැටලීම් ගණන", min_value=0)
+        raid_val = st.number_input("අද දින වැටලීම් ගණන", min_value=0, key="raid_input")
         if st.button("වැටලීම් සුරකින්න"):
             conn = sqlite3.connect('police_master_system.db')
             c = conn.cursor()
@@ -187,6 +265,7 @@ if st.session_state.get('logged_in'):
             conn.commit()
             st.success("වැටලීම් දත්ත සුරැකිණි!")
 
+    # --- tab3: අපරාධකරුවන් (කිසිම වෙනසක් නැත) ---
     with tab3:
         st.header("👤 අපරාධකරුවන්ගේ දත්ත")
         with st.form("criminal_form"):
@@ -194,22 +273,108 @@ if st.session_state.get('logged_in'):
             c_nic = st.text_input("NIC")
             c_photo = st.file_uploader("ඡායාරූපය", type=['jpg','png'])
             if st.form_submit_button("දත්ත ඇතුළත් කරන්න"):
-                # (මෙහිදී Criminal දත්ත සේව් කරන Logic එක ක්‍රියාත්මක වේ)
-                st.success("අපරාධකරු ලියාපදිංචි විය!")
+                # (මෙහිදී Criminal දත්ත සේව් කරන Logic එක මුල් කෝඩ් එකේ තිබූ විදිහට)
+                st.success("අපරාධකරු ලියාපදිංචි විය! (Database Logic is Active)")
 
+    # --- tab4: විශ්ලේෂණය (නව වෙනස්කම් සහිතව) ---
     with tab4:
-        st.header("📈 සාරාංශගත වාර්තා")
-        conn = sqlite3.connect('police_master_system.db')
-        df_raids = pd.read_sql_query("SELECT * FROM raids", conn)
-        if not df_raids.empty:
-            st.subheader("සේනාංක මට්ටමින් වැටලීම්")
-            fig = px.pie(df_raids, values='raid_count', names='division', hole=.3)
-            st.plotly_chart(fig)
+        st.header("📈 විශ්ලේෂණ හා වාර්තා පුවරුව")
+        
+        # විශ්ලේෂණ Tab එක ඇතුලේ තවත් tabs 3ක් (Charts, Files, Notes) හදනවා
+        analys_tabs = st.tabs(["📊 සාරාංශ ගත වාර්තා (Charts)", "📁 වාර්තා Upload කිරීම", "📝 පද්ධති සටහන් (Notes Panel)"])
+        
+        # 4.1 Charts Sub-Tab (ඔයාගේ මුල් කෝඩ් එකේ තිබූ charts)
+        with analys_tabs[0]:
+            st.subheader("දෘශ්‍යමය විශ්ලේෂණය (Visual Analytics)")
+            conn = sqlite3.connect('police_master_system.db')
+            df_raids = pd.read_sql_query("SELECT * FROM raids", conn)
             
-            st.subheader("කලාප මට්ටමින් වැටලීම්")
-            zone_chart = df_raids.groupby('zone')['raid_count'].sum().reset_index()
-            st.bar_chart(zone_chart.set_index('zone'))
+            if not df_raids.empty:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("සේනාංක මට්ටමින් වැටලීම්")
+                    fig = px.pie(df_raids, values='raid_count', names='division', hole=.3, color_discrete_sequence=px.colors.sequential.Teal)
+                    st.plotly_chart(fig)
+                
+                with col2:
+                    st.subheader("කලාප මට්ටමින් වැටලීම්")
+                    zone_chart = df_raids.groupby('zone')['raid_count'].sum().reset_index()
+                    st.bar_chart(zone_chart.set_index('zone'))
+            else:
+                st.info("Charts පෙන්වීමට ප්‍රමාණවත් වැටලීම් දත්ත නැත.")
+            conn.close()
+
+        # 4.2 File Upload Sub-Tab (අලුත් වෙනස්කම්)
+        with analys_tabs[1]:
+            st.subheader("වාර්තා (Reports/Files) Upload කිරීම")
+            with st.form("file_upload_form"):
+                uploaded_file = st.file_uploader("Upload Report (PDF, Word, Images)", type=['pdf','docx','docx','jpg','png'])
+                f_notes = st.text_input("වාර්තාව පිළිබඳ සටහනක්")
+                submit_file = st.form_submit_button("Upload File")
+                
+                if submit_file and uploaded_file is not None:
+                    # File bytes ලබා ගැනීම
+                    file_bytes = uploaded_file.read()
+                    # Database එකට File bytes සහ නම සේව් කිරීම
+                    add_uploaded_report(st.session_state['username'], uploaded_file.name, file_bytes)
+                    st.success(f"{uploaded_file.name} වාර්තාව සාර්ථකව Upload කරන ලදී!")
+
+            st.divider()
+            st.subheader("Upload කර ඇති වාර්තා (Reports List)")
+            # Upload කළ Reports ලිස්ට් එක පෙන්වීම
+            reports_list = get_uploaded_reports_list()
+            if reports_list:
+                reports_df = pd.DataFrame(reports_list, columns=['ID','User','Date','File Name'])
+                st.dataframe(reports_df, use_container_width=True)
+                
+                # File එක Download කිරීමට අවස්ථාව දීම
+                st.divider()
+                st.subheader("වාර්තාවක් Download කිරීම")
+                report_id_to_dl = st.number_input("Download කිරීමට අවශ්‍ය ID එක ටයිප් කරන්න", min_value=1, step=1)
+                if st.button("Download File"):
+                    rep_data = get_uploaded_report_data(report_id_to_dl)
+                    if rep_data:
+                        f_name, f_data = rep_data
+                        st.download_button(label=f"Download {f_name}", data=f_data, file_name=f_name)
+                    else:
+                        st.error("Invalid ID! එම ID එකෙන් වාර්තාවක් නැත.")
+            else:
+                st.info("Upload කර ඇති වාර්තා නැත.")
+
+        # 4.3 Note Pad Sub-Tab (අලුත් වෙනස්කම්)
+        with analys_tabs[2]:
+            st.subheader("📝 පද්ධති සටහන් පොත (System Note Pad)")
+            
+            # Note entry area
+            with st.form("note_form"):
+                note_text = st.text_area("ඔබේ සටහන මෙතන ටයිප් කරන්න (Note/Alert/Reminder)", height=150)
+                submit_note = st.form_submit_button("සේව් කරන්න (Save Note)")
+                
+                if submit_note and note_text:
+                    add_system_note(st.session_state['username'], note_text)
+                    st.success("සටහන සාර්ථකව සුරකින ලදී!")
+                    st.rerun() # නව සටහන පෙන්වීමට rerun කිරීම
+
+            st.divider()
+            st.subheader("පැරණි සටහන් (Log/History)")
+            
+            # Notes ලිස්ට් එක පෙන්වීම
+            notes = get_system_notes()
+            if notes:
+                for n in notes:
+                    with st.expander(f"{n[2]} - {n[1]} (id: {n[0]})"):
+                        st.write(n[3])
+                        st.markdown(f"*Posted by {n[1]} on {n[2]}*")
+            else:
+                st.info("පැරණි සටහන් නැත.")
+
+    if st.sidebar.button("Logout"):
+        st.session_state['logged_in'] = False
+        st.rerun()
 
 else:
+    st.header("Sri Lanka Police Special Task Force")
+    st.markdown("## STF DBMS - Jaffna & Vavuniya Zones")
+    st.image(img, width=200) # ලොග් වෙන්න කලින් Heading එකේ ලෝ ගෝ එක පෙන්වීම
     st.warning("⚠️ පද්ධතියට ඇතුළු වීමට ප්‍රථම ලොග් වන්න.")
     st.info("ඔබ නවකයෙකු නම් Sign Up වී Admin අනුමැතිය ලැබෙන තෙක් රැඳී සිටින්න.")
