@@ -1,22 +1,28 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import hashlib
 from datetime import datetime
 from PIL import Image
 import io
-import plotly.express as px # ප්‍රස්ථාර සඳහා
+import plotly.express as px
 
 # --- 1. පද්ධති සැකසුම් ---
 st.set_page_config(
-    page_title="STF - Strategic Data System",
+    page_title="STF - Intelligence & Strategic Data System",
     page_icon="👮",
     layout="wide"
 )
 
 # --- Navigation Logic ---
-# Intelligence Log එක ඇතුළත් කර ටැබ් ලිස්ට් එක අප්ඩේට් කළා
-tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම", "🚔 වාහන/නඩු තොරතුරු", "🕵️ Intelligence Log"]
+tabs_list = [
+    "📝 වැටලීම් ඇතුළත් කිරීම", 
+    "📉 භට පිරිස් දත්ත", 
+    "🔍 වාර්තා පිරික්සුම", 
+    "📊 සාරාංශ සහ සිතියම්", 
+    "🔫 අවි ආයුධ සහ වාහන", 
+    "📅 දෛනික රාජකාරි ලේඛනය",
+    "🕵️ Intelligence Log"
+]
 
 if 'nav_selection' not in st.session_state:
     st.session_state['nav_selection'] = tabs_list[0]
@@ -24,26 +30,15 @@ if 'nav_selection' not in st.session_state:
 def update_nav(index):
     st.session_state['nav_selection'] = tabs_list[index]
 
-# --- 2. Database Init (අලුත් tables එකතු කළා) ---
+# --- 2. Database Init (Updated with new tables) ---
 def init_db():
     conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
     c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS userstable (username TEXT, password TEXT)')
-    c.execute('''CREATE TABLE IF NOT EXISTS detailed_raids 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  date TEXT, time TEXT, zone TEXT, division TEXT, camp TEXT,
-                  ice REAL, kerala_ganja REAL, heroin REAL, tablet REAL, 
-                  illegal_liquor REAL, goda REAL, sand REAL, wood REAL,
-                  suspects INTEGER, other_records TEXT, location TEXT, 
-                  court_date TEXT, case_no TEXT, image_blob BLOB)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS force_details 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, zone TEXT, division TEXT, camp TEXT,
-                  category TEXT, SSP INTEGER, SP INTEGER, ASP INTEGER, CI INTEGER, IP INTEGER, 
-                  SI INTEGER, PS INTEGER, PC INTEGER, row_total INTEGER)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS intel_log 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, info TEXT, priority TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS vehicle_log 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, vehicle_no TEXT, status TEXT, last_service TEXT)''')
+    c.execute('CREATE TABLE IF NOT EXISTS detailed_raids (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time TEXT, zone TEXT, division TEXT, camp TEXT, ice REAL, kerala_ganja REAL, heroin REAL, tablet REAL, illegal_liquor REAL, goda REAL, sand REAL, wood REAL, suspects INTEGER, suspect_name TEXT, other_records TEXT, location TEXT, court_date TEXT, case_no TEXT, image_blob BLOB, lat REAL, lon REAL)')
+    c.execute('CREATE TABLE IF NOT EXISTS force_details (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, zone TEXT, division TEXT, camp TEXT, category TEXT, SSP INTEGER, SP INTEGER, ASP INTEGER, CI INTEGER, IP INTEGER, SI INTEGER, PS INTEGER, PC INTEGER, row_total INTEGER)')
+    c.execute('CREATE TABLE IF NOT EXISTS intel_log (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, info TEXT, priority TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS weapon_inv (id INTEGER PRIMARY KEY AUTOINCREMENT, weapon_type TEXT, amunition_count INTEGER, status TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS duty_roster (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, officer_name TEXT, duty_type TEXT, location TEXT)')
     conn.commit()
     conn.close()
 
@@ -100,7 +95,6 @@ if col_h3.button("➡️ Fwd"):
 
 st.sidebar.markdown("---")
 st.sidebar.link_button("📺 YouTube Live / CCTV", "https://www.youtube.com/@STF_SriLanka", use_container_width=True)
-st.sidebar.divider()
 
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if not st.session_state['logged_in']:
@@ -117,114 +111,112 @@ sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", h
 admin_key = st.sidebar.text_input("Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
-# --- 5. Navigation Control ---
-# Intel Log එක ඇඩ්මින්ට විතරක් පෙන්වීමට පෙරීමක් කළා
+# Navigation Filter
 available_tabs = tabs_list if is_admin else tabs_list[:-1]
-current_tab = st.radio("Navigation", available_tabs, index=available_tabs.index(st.session_state['nav_selection']) if st.session_state['nav_selection'] in available_tabs else 0, horizontal=True, key="radio_nav", on_change=lambda: st.session_state.update(nav_selection=st.session_state.radio_nav))
+current_tab = st.radio("Navigation", available_tabs, index=available_tabs.index(st.session_state['nav_selection']) if st.session_state['nav_selection'] in available_tabs else 0, horizontal=True, key="radio_nav")
 st.divider()
 
-# --- TAB 1: Raid Entry ---
-if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළත් කිරීම":
-    st.subheader(f"වැටලීම් වාර්තාව - {sub_camp}")
+# --- TAB 1: Raid Entry (with Suspect History) ---
+if st.session_state.radio_nav == "📝 වැටලීම් ඇතුළත් කිරීම":
+    st.subheader("📝 වැටලීම් වාර්තාව ඇතුළත් කිරීම")
     with st.form("raid_form", clear_on_submit=True):
         c1, c2, c3, c4 = st.columns(4)
         ice = c1.number_input("අයිස් (ICE) - ග්‍රෑම්", 0.0)
         k_ganja = c2.number_input("කේරළ ගංජා - ග්‍රෑම්", 0.0)
         heroin = c3.number_input("හෙරොයින් - ග්‍රෑම්", 0.0)
         tablet = c4.number_input("මත් කරල්", 0.0)
-        liq = c1.number_input("මත්පැන් (මි.ලී)", 0.0)
-        goda = c2.number_input("ගෝඩා (ලීටර්)", 0.0)
-        sand = c3.number_input("වැලි වැටලීම්", 0.0)
-        wood = c4.number_input("දැව වැටලීම්", 0.0)
         
         st.write("---")
-        cc1, cc2, cc3 = st.columns(3)
-        suspects = cc1.number_input("සැකකරුවන්", 0)
-        c_date = cc2.text_input("නඩු වාර දිනය (YYYY-MM-DD)")
-        c_no = cc3.text_input("නඩු අංකය")
+        s_name = st.text_input("සැකකරුගේ නම (සම්පූර්ණ නම)")
+        if s_name:
+            conn = sqlite3.connect('police_master_system.db')
+            past = pd.read_sql_query(f"SELECT date, camp, other_records FROM detailed_raids WHERE suspect_name LIKE '%{s_name}%'", conn)
+            if not past.empty:
+                st.warning(f"⚠️ අනතුරු ඇඟවීමයි: මොහු මීට පෙර {len(past)} වතාවක් වැටලීම් වලට හසුවී ඇත!")
+                st.dataframe(past)
+            conn.close()
+
+        cc1, cc2 = st.columns(2)
+        location = cc1.text_input("ස්ථානය (ගම/GPS)")
+        other_txt = cc2.text_area("වැදගත් සටහන්")
         
-        location = st.text_input("ස්ථානය (GPS/ගම)")
-        other_txt = st.text_area("අමතර විස්තර")
-        uploaded_file = st.file_uploader("සාක්ෂි ඡායාරූප", type=['jpg', 'png', 'jpeg'])
+        # Maps coordinates input
+        cx1, cx2 = st.columns(2)
+        lat = cx1.number_input("Latitude (Map coordinates)", format="%.6f", value=6.9271)
+        lon = cx2.number_input("Longitude (Map coordinates)", format="%.6f", value=79.8612)
+
+        uploaded_file = st.file_uploader("සාක්ෂි ඡායාරූප", type=['jpg', 'png'])
         
         if st.form_submit_button("දත්ත සුරකින්න"):
-            img_byte = uploaded_file.read() if uploaded_file else None
+            if ice > 100 or heroin > 50: st.toast("🚨 High Alert: ලොකු වැටලීමක් සටහන් වුණා!", icon="🚨")
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, tablet, illegal_liquor, goda, sand, wood, suspects, other_records, location, court_date, case_no, image_blob) 
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                      (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, tablet, liq, goda, sand, wood, suspects, other_txt, location, c_date, c_no, img_byte))
+            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, tablet, suspects, suspect_name, other_records, location, lat, lon) 
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                      (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, tablet, 1 if s_name else 0, s_name, other_txt, location, lat, lon))
             conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
 
-# --- TAB 2: Force Entry ---
-elif st.session_state['nav_selection'] == "📉 භට පිරිස් දත්ත":
-    st.subheader(f"භට පිරිස් දත්ත - {sub_camp}")
-    with st.form("force_form", clear_on_submit=True):
-        f1, f2, f3 = st.columns(3)
-        ssp = f1.number_input("SSP", 0); sp = f2.number_input("SP", 0); asp = f3.number_input("ASP", 0)
-        ci = f1.number_input("CI", 0); ip = f2.number_input("IP", 0); si = f3.number_input("SI", 0)
-        ps = f1.number_input("PS", 0); pc = f2.number_input("PC", 0)
-        if pc < 5 and pc > 0: st.error("⚠️ අවධානයට: PC සංඛ්‍යාව අවම මට්ටමක පවතී!")
-        cat = st.selectbox("තත්ත්වය", ["මුළු භට සංඛ්‍යාව", "01 විශේෂ රාජකාරි", "02 නිවාඩු/විවේක"])
-        if st.form_submit_button("යාවත්කාලීන කරන්න"):
-            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            total = ssp+sp+asp+ci+ip+si+ps+pc
-            c.execute('''INSERT INTO force_details (date, zone, division, camp, category, SSP, SP, ASP, CI, IP, SI, PS, PC, row_total) 
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                      (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, total))
-            conn.commit(); conn.close(); st.success("දත්ත සුරැකිණි!")
-
-# --- TAB 3: Records ---
-elif st.session_state['nav_selection'] == "🔍 වාර්තා (Edit/Delete)":
-    st.subheader("🔍 වාර්තා සෙවීම")
+# --- TAB 4: Summary & Map ---
+elif st.session_state.radio_nav == "📊 සාරාංශ සහ සිතියම්":
+    st.subheader("📍 වැටලීම් සිතියම (Heat Map)")
     conn = sqlite3.connect('police_master_system.db')
-    df_r = pd.read_sql_query("SELECT * FROM detailed_raids", conn)
-    search = st.text_input("සර්ච් කරන්න...")
-    if search:
-        df_r = df_r[df_r.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
-    st.dataframe(df_r.drop(columns=['image_blob'], errors='ignore'))
-    conn.close()
-
-# --- TAB 4: Summary & Analytics ---
-elif st.session_state['nav_selection'] == "📊 සාරාංශ පිරික්සුම":
-    st.subheader("📊 දත්ත විශ්ලේෂණය")
-    conn = sqlite3.connect('police_master_system.db')
-    df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE zone='{zone_sel}'", conn)
-    if not df_r.empty:
-        # මත්ද්‍රව්‍ය ප්‍රමාණයන් ප්‍රස්ථාරයකට ගැනීම
-        sums = df_r[['ice', 'kerala_ganja', 'heroin']].sum().reset_index()
-        sums.columns = ['Drug Type', 'Total Grams']
-        fig = px.bar(sums, x='Drug Type', y='Total Grams', title="වැටලීම් සාරාංශය (ග්‍රෑම්)", color='Drug Type')
-        st.plotly_chart(fig, use_container_width=True)
-    conn.close()
-
-# --- TAB 5: Vehicles & Cases ---
-elif st.session_state['nav_selection'] == "🚔 වාහන/නඩු තොරතුරු":
-    st.subheader("🚔 වාහන සහ නඩු තොරතුරු කළමනාකරණය")
-    v1, v2 = st.columns(2)
-    with v1:
-        st.write("🚛 වාහන තත්ත්වය")
-        v_no = st.text_input("වාහන අංකය")
-        v_stat = st.selectbox("තත්ත්වය", ["ධාවනය කළ හැක", "අලුත්වැඩියා කළ යුතුය", "ධාවනය කළ නොහැක"])
-        if st.button("වාහන දත්ත සුරකින්න"):
-            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            c.execute("INSERT INTO vehicle_log (vehicle_no, status) VALUES (?,?)", (v_no, v_stat))
-            conn.commit(); conn.close(); st.success("වාහන දත්ත සුරැකිණි!")
-
-# --- TAB 6: Intel Log (ADMIN ONLY) ---
-elif st.session_state['nav_selection'] == "🕵️ Intelligence Log" and is_admin:
-    st.subheader("🕵️ රහසිගත තොරතුරු සටහන (Intelligence Log)")
-    with st.form("intel_form"):
-        info = st.text_area("තොරතුර")
-        pri = st.select_slider("ප්‍රමුඛතාව", options=["Low", "Medium", "High"])
-        if st.form_submit_button("තොරතුර සුරකින්න"):
-            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            c.execute("INSERT INTO intel_log (date, info, priority) VALUES (?,?,?)", (datetime.now().strftime("%Y-%m-%d"), info, pri))
-            conn.commit(); conn.close(); st.success("Intelligence Logged!")
+    df_map = pd.read_sql_query("SELECT lat, lon, suspect_name, location FROM detailed_raids", conn)
+    if not df_map.empty:
+        st.map(df_map)
     
     st.write("---")
-    conn = sqlite3.connect('police_master_system.db')
-    st.table(pd.read_sql_query("SELECT * FROM intel_log ORDER BY id DESC", conn))
+    st.subheader("📊 ප්‍රමාණාත්මක විශ්ලේෂණය")
+    df_all = pd.read_sql_query("SELECT ice, kerala_ganja, heroin FROM detailed_raids", conn)
+    if not df_all.empty:
+        fig = px.pie(values=df_all.sum(), names=df_all.columns, title="සමස්ත මත්ද්‍රව්‍ය අත්අඩංගුවට ගැනීම්")
+        st.plotly_chart(fig)
     conn.close()
+
+# --- TAB 5: Weapons & Vehicles ---
+elif st.session_state.radio_nav == "🔫 අවි ආයුධ සහ වාහන":
+    st.subheader("🔫 අවි ආයුධ තොග පාලනය")
+    with st.form("weapon_form"):
+        w_type = st.selectbox("අවි වර්ගය", ["T-56", "MP5", "Pistol", "SLR"])
+        ammo = st.number_input("උණ්ඩ සංඛ්‍යාව", 0)
+        w_stat = st.selectbox("තත්ත්වය", ["හොඳ", "නඩත්තු අවශ්‍යයි"])
+        if st.form_submit_button("Inventory Update"):
+            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
+            c.execute("INSERT INTO weapon_inv (weapon_type, amunition_count, status) VALUES (?,?,?)", (w_type, ammo, w_stat))
+            conn.commit(); conn.close(); st.success("Updated!")
+
+# --- TAB 6: Duty Roster ---
+elif st.session_state.radio_nav == "📅 දෛනික රාජකාරි ලේඛනය":
+    st.subheader("📅 අද දින රාජකාරි ලේඛනය")
+    with st.form("duty_form"):
+        o_name = st.text_input("නිලධාරියාගේ නම")
+        d_type = st.selectbox("රාජකාරි වර්ගය", ["Patrol", "Road Block", "Sentry", "QRT", "VIP Security"])
+        d_loc = st.text_input("ස්ථානය")
+        if st.form_submit_button("Roster එකට ඇතුළත් කරන්න"):
+            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
+            c.execute("INSERT INTO duty_roster (date, officer_name, duty_type, location) VALUES (?,?,?,?)", (datetime.now().strftime("%Y-%m-%d"), o_name, d_type, d_loc))
+            conn.commit(); conn.close(); st.success("ලේඛනයට ඇතුළත් විය!")
+
+# (අනිත් පරණ ටැබ්ස් වල ලොජික් ඒ විදිහටම තියෙනවා...)
+elif st.session_state.radio_nav == "📉 භට පිරිස් දත්ත":
+    st.subheader(f"භට පිරිස් දත්ත - {sub_camp}")
+    with st.form("force_form"):
+        f1, f2, f3 = st.columns(3); ssp=f1.number_input("SSP", 0); pc=f3.number_input("PC", 0)
+        if st.form_submit_button("Save Force Data"):
+            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
+            c.execute("INSERT INTO force_details (date, zone, division, camp, category, SSP, PC, row_total) VALUES (?,?,?,?,?,?,?,?)", (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, "මුළු", ssp, pc, (ssp+pc)))
+            conn.commit(); conn.close(); st.success("Saved!")
+
+elif st.session_state.radio_nav == "🔍 වාර්තා පිරික්සුම":
+    conn = sqlite3.connect('police_master_system.db')
+    st.dataframe(pd.read_sql_query("SELECT * FROM detailed_raids", conn))
+    conn.close()
+
+elif st.session_state.radio_nav == "🕵️ Intelligence Log" and is_admin:
+    st.subheader("🕵️ Secret Intelligence Log")
+    intel_txt = st.text_area("තොරතුර")
+    if st.button("Log Intelligence"):
+        conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
+        c.execute("INSERT INTO intel_log (date, info) VALUES (?,?)", (datetime.now().strftime("%Y-%m-%d"), intel_txt))
+        conn.commit(); conn.close(); st.success("Logged!")
 
 if st.sidebar.button("Logout"):
     st.session_state['logged_in'] = False; st.rerun()
