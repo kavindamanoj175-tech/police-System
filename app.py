@@ -207,11 +207,6 @@ with tab2:
             st.dataframe(df_r, use_container_width=True, hide_index=True)
     conn.close()
 
-# Other Tabs...
-with tab3:
-    st.write("📈 පද්ධති විශ්ලේෂණය...")
-with tab4:
-    st.write("📝 සටහන් පොත...")
 # --- TAB 5: Force Report & Admin Edit/Delete ---
 with tab5:
     st.header(f"📊 භට සංඛ්‍යා වාර්තාව - {camp_sel}")
@@ -245,5 +240,12 @@ with tab5:
     else:
         st.info("අද දිනට දත්ත නැත.")
     conn.close()
+
+# Other Tabs...
+with tab3:
+    st.write("📈 පද්ධති විශ්ලේෂණය...")
+with tab4:
+    st.write("📝 සටහන් පොත...")
+
 if st.sidebar.button("Logout"):
     st.session_state['logged_in'] = False; st.rerun()
