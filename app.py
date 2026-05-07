@@ -167,7 +167,7 @@ try:
     st.sidebar.image(img, use_column_width=True)
 except FileNotFoundError:
     st.sidebar.error("Logo file (logo.png) not found in GitHub repository!")
-exceptException as e:
+except Exception as e:
     st.sidebar.error(f"Error loading logo: {e}")
 
 st.sidebar.divider()
