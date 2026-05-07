@@ -42,7 +42,7 @@ def init_db():
 
 init_db()
 
-# --- 3. ධුරාවලිය (ඔයා දුන්නු නිවැරදි තොරතුරු මෙතන තියෙනවා මචං) ---
+# --- 3. ධුරාවලිය ---
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
@@ -75,13 +75,24 @@ hierarchy = {
     }
 }
 
-# --- 4. Sidebar & Logo ---
+# --- 4. Sidebar ---
 st.sidebar.title("👮 STF DBMS")
 try:
     img = Image.open("logo.png")
     st.sidebar.image(img, use_container_width=True)
 except:
-    st.sidebar.info("Logo (logo.png) not found.")
+    st.sidebar.info("Logo not found.")
+
+# Home & Navigation Buttons (Under Logo)
+col_h1, col_h2, col_h3 = st.sidebar.columns(3)
+if col_h1.button("🏠 Home"):
+    st.rerun()
+if col_h2.button("⬅️ Back"):
+    st.info("පසුපසට යාමට Browser එකේ Back Button එක පාවිච්චි කරන්න.")
+if col_h3.button("➡️ Fwd"):
+    st.info("ඉදිරියට යාමට Browser එකේ Forward Button එක පාවිච්චි කරන්න.")
+
+st.sidebar.divider()
 
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
@@ -94,18 +105,17 @@ if not st.session_state['logged_in']:
         st.session_state['logged_in'] = True; st.session_state['username'] = u; st.rerun()
     st.stop()
 
-# Location Selections
-st.sidebar.divider()
+# Location Selection
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
 sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", hierarchy[zone_sel][div_sel][main_camp])
 
-admin_key = st.sidebar.text_input("Admin Key (For Edit/Delete)", type="password")
+admin_key = st.sidebar.text_input("Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
 # --- 5. Tabs ---
-tab1, tab2, tab3, tab4 = st.tabs(["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා පිරික්සුම (Edit/Delete)", "📊 විශ්ලේෂණය"])
+tab1, tab2, tab3, tab4 = st.tabs(["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා (Edit/Delete)", "📊 සාරාංශ පිරික්සුම"])
 
 # --- TAB 1: Raid Entry ---
 with tab1:
@@ -120,7 +130,6 @@ with tab1:
         sand = c3.number_input("වැලි/ලී වැටලීම්", 0.0)
         suspects = c1.number_input("සැකකරුවන්", 0)
         other_txt = st.text_area("අමතර විස්තර සහ වෙනත් වැටලීම්")
-        
         if st.form_submit_button("දත්ත සුරකින්න"):
             conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
             c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
@@ -146,37 +155,39 @@ with tab2:
 
 # --- TAB 3: Edit/Delete Section ---
 with tab3:
-    st.subheader("🔍 දත්ත කළමනාකරණය (Edit/Delete)")
+    st.subheader("🔍 දත්ත කළමනාකරණය")
     conn = sqlite3.connect('police_master_system.db')
     
     st.write("### 🕵️ වැටලීම් වාර්තා")
     df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE zone='{zone_sel}'", conn)
     if is_admin:
-        edited_r = st.data_editor(df_r, num_rows="dynamic", key="raid_edit_table")
-        if st.button("වැටලීම් දත්ත Update කරන්න"):
+        edited_r = st.data_editor(df_r, num_rows="dynamic", key="raid_ed")
+        if st.button("Raid Data Update/Delete"):
             edited_r.to_sql('detailed_raids', conn, if_exists='replace', index=False)
-            st.success("වැටලීම් දත්ත යාවත්කාලීන විය!"); st.rerun()
+            st.success("වෙනස්කම් සුරැකිණි!"); st.rerun()
     else:
         st.dataframe(df_r)
-
-    st.divider()
-    st.write("### 👮 භට පිරිස් වාර්තා")
-    df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
-    if is_admin:
-        edited_f = st.data_editor(df_f, num_rows="dynamic", key="force_edit_table")
-        if st.button("භට පිරිස් දත්ත Update කරන්න"):
-            edited_f.to_sql('force_details', conn, if_exists='replace', index=False)
-            st.success("භට පිරිස් දත්ත යාවත්කාලීන විය!"); st.rerun()
-    else:
-        st.dataframe(df_f)
     conn.close()
 
-# --- TAB 4: Summary ---
+# --- TAB 4: Summary with Delete Option ---
 with tab4:
-    st.subheader("📊 කලාපීය/සේනාංක සාරාංශය")
+    st.subheader("📊 කලාපීය/සේනාංක සාරාංශ පිරික්සුම")
+    conn = sqlite3.connect('police_master_system.db')
+    df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
+    
     if not df_f.empty:
-        summary = df_f.groupby('category').sum().reset_index()
-        st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
+        if is_admin:
+            st.warning("Admin Mode: ඔබට සාරාංශ ගත දත්ත මෙතැනින් සංස්කරණය හෝ මකා දැමීම (Delete) කළ හැක.")
+            edited_f = st.data_editor(df_f, num_rows="dynamic", key="summary_ed")
+            if st.button("Summary Update/Delete"):
+                edited_f.to_sql('force_details', conn, if_exists='replace', index=False)
+                st.success("දත්ත යාවත්කාලීන විය/මැකී ගියේය!"); st.rerun()
+        else:
+            summary = df_f.groupby('category').sum().reset_index()
+            st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
+    else:
+        st.info("දත්ත නොමැත.")
+    conn.close()
 
 if st.sidebar.button("Logout"):
     st.session_state['logged_in'] = False; st.rerun()
