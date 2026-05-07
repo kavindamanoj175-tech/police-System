@@ -35,19 +35,7 @@ def init_db():
                   unidentified_liquor REAL, gov_liquor REAL, sand_timber REAL,
                   tobacco REAL, cigarettes REAL, fireworks REAL, suspects INTEGER,
                   other_records TEXT)''')
-    
-    # Force Stats Table එක සැකසීම
-    c.execute('''CREATE TABLE IF NOT EXISTS force_stats 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, zone TEXT, division TEXT, camp TEXT, 
-                  SSP INTEGER, SP INTEGER, ASP INTEGER, CI INTEGER, IP INTEGER, 
-                  SI INTEGER, PS INTEGER, PSD INTEGER, PC INTEGER, PCD INTEGER, total INTEGER)''')
-    
-    # වැදගත්: පරණ Database එකක 'total' column එක නැත්නම් ඒක එකතු කිරීම
-    try:
-        c.execute("ALTER TABLE force_stats ADD COLUMN total INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass # දැනටමත් තිබේ නම් දෝෂය නොසලකා හරින්න
-
+    c.execute('''CREATE TABLE IF NOT EXISTS force_stats (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, zone TEXT, division TEXT, camp TEXT, SSP INTEGER, SP INTEGER, ASP INTEGER, CI INTEGER, IP INTEGER, SI INTEGER, PS INTEGER, PSD INTEGER, PC INTEGER, PCD INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS system_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, date TEXT, note TEXT)''')
     conn.commit()
     conn.close()
@@ -69,7 +57,7 @@ def get_pending_users():
 
 init_db()
 
-# --- 3. ධුරාවලිය ---
+# --- 3. ධුරාවලිය (Hierarchy Data) ---
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
@@ -110,6 +98,8 @@ try:
 except Exception:
     st.sidebar.info("Logo not found.")
 
+# Admin Panel Logic
+st.sidebar.divider()
 admin_key = st.sidebar.text_input("Admin Key", type="password")
 is_admin = (admin_key == "Police@123")
 
@@ -121,6 +111,7 @@ if is_admin:
         if st.sidebar.button("Confirm Approval"):
             approve_user(u_to_app); st.sidebar.success("Approved!"); st.rerun()
 
+# Login Logic
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
@@ -134,107 +125,121 @@ if not st.session_state['logged_in']:
 
 # --- 5. Main System ---
 st.title("🚨 Special Task Force - Data Management System")
+
+# Global Selections
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
 camp_sel = st.sidebar.selectbox("කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 දත්ත ඇතුළත් කිරීම", "🔍 වැටලීම් වාර්තා", "📊 විශ්ලේෂණය", "📝 සටහන් පොත", "📉 භට පිරිස් වාර්තාව"])
+tab1, tab2, tab3, tab4 = st.tabs(["📝 දත්ත ඇතුළත් කිරීම", "🔍 විස්තරාත්මක වාර්තා (Edit/Delete)", "📊 සාරාංශ ගත වාර්තා", "📝 සටහන් පොත"])
 
+# --- TAB 1: Data Entry ---
 with tab1:
-    col_raid, col_force = st.columns(2)
-    with col_raid:
-        st.subheader("🕵️ වැටලීම් දත්ත")
-        with st.form("raid_form", clear_on_submit=True):
-            ice = st.number_input("අයිස් (ICE) - ග්‍රෑම්", min_value=0.0)
-            k_ganja = st.number_input("කේරළ ගංජා - කි.ග්‍රෑ", min_value=0.0)
-            heroin = st.number_input("හෙරොයින් - ග්‍රෑම්", min_value=0.0)
-            suspects = st.number_input("සැකකරුවන්", min_value=0)
-            other = st.text_area("වෙනත්")
-            if st.form_submit_button("වැටලීම සුරකින්න"):
-                conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-                c.execute('INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, suspects, other_records) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                          (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, camp_sel, ice, k_ganja, heroin, suspects, other))
-                conn.commit(); conn.close(); st.success("දත්ත සුරැකිණි!")
+    st.header(f"🕵️ වැටලීම් දත්ත ඇතුළත් කිරීම - {camp_sel}")
+    with st.form("detailed_raid_form", clear_on_submit=True):
+        c1, c2, c3 = st.columns(3)
+        ice = c1.number_input("අයිස් (ICE) - ග්‍රෑම්", min_value=0.0)
+        k_ganja = c2.number_input("කේරළ ගංජා - කි.ග්‍රෑ", min_value=0.0)
+        heroin = c3.number_input("හෙරොයින් - ග්‍රෑම්", min_value=0.0)
+        mava = c1.number_input("මාවා (Mava) - කි.ග්‍රෑ", min_value=0.0)
+        mandrax = c2.number_input("මැන්ඩ්‍රැක්ස් - පෙති", min_value=0.0)
+        dambul = c3.number_input("ඩම්බුල් - කි.ග්‍රෑ", min_value=0.0)
+        liq_ill = c1.number_input("නීතිවිරෝධී මත්පැන් (බෝතල්)", min_value=0.0)
+        goda = c2.number_input("ගෝඩා (ලීටර්)", min_value=0.0)
+        sand_timber = c3.number_input("වැලි/ලී වැටලීම්", min_value=0)
+        suspects = c1.number_input("සැකකරුවන් ගණන", min_value=0)
+        other_text = st.text_area("වෙනත් විස්තර (ආයුධ/වාහන අංක ආදිය)")
+        
+        if st.form_submit_button("වාර්තාව සුරකින්න"):
+            now = datetime.now()
+            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
+            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, mava, mandrax, dambul, illegal_liquor, goda, sand_timber, suspects, other_records) 
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                      (now.strftime("%Y-%m-%d"), now.strftime("%H:%M"), zone_sel, div_sel, camp_sel, ice, k_ganja, heroin, mava, mandrax, dambul, liq_ill, goda, sand_timber, suspects, other_text))
+            conn.commit(); conn.close(); st.success("දත්ත සාර්ථකව ගබඩා විය!")
 
-    with col_force:
-        st.subheader("👮 භට පිරිස් දත්ත")
-        with st.form("force_form", clear_on_submit=True):
-            ssp = st.number_input("SSP", min_value=0)
-            sp = st.number_input("SP", min_value=0)
-            asp = st.number_input("ASP", min_value=0)
-            ci = st.number_input("CI", min_value=0)
-            ip = st.number_input("IP", min_value=0)
-            si = st.number_input("SI", min_value=0)
-            ps = st.number_input("PS", min_value=0)
-            psd = st.number_input("PS (Drive)", min_value=0)
-            pc = st.number_input("PC", min_value=0)
-            pcd = st.number_input("PC (Drive)", min_value=0)
-            if st.form_submit_button("භට පිරිස් සුරකින්න"):
-                total_f = ssp+sp+asp+ci+ip+si+ps+psd+pc+pcd
-                conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-                c.execute('INSERT INTO force_stats (date, zone, division, camp, SSP, SP, ASP, CI, IP, SI, PS, PSD, PC, PCD, total) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                          (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, camp_sel, ssp, sp, asp, ci, ip, si, ps, psd, pc, pcd, total_f))
-                conn.commit(); conn.close(); st.success("භට පිරිස් දත්ත සුරැකිණි!")
-
+# --- TAB 2: Detailed Filtering & ADMIN EDIT/DELETE ---
 with tab2:
-    st.header("🔍 වැටලීම් කළමනාකරණය")
-    start_dt = st.date_input("ආරම්භය", value=datetime.now(), key="r1")
-    end_dt = st.date_input("අවසානය", value=datetime.now(), key="r2")
+    st.header("🔍 වාර්තා පෙරීම සහ කළමනාකරණය")
+    filter_level = st.radio("පෙන්විය යුතු මට්ටම", ["කලාප මට්ටමින්", "සේනාංක මට්ටමින්", "කදවුරු මට්ටමින්"], horizontal=True)
+    
+    f1, f2 = st.columns(2)
+    start_dt = f1.date_input("ආරම්භක දිනය", value=datetime.now())
+    end_dt = f2.date_input("අවසාන දිනය", value=datetime.now())
+    
     conn = sqlite3.connect('police_master_system.db')
-    df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE date BETWEEN '{start_dt}' AND '{end_dt}'", conn)
+    query = f"SELECT * FROM detailed_raids WHERE date BETWEEN '{start_dt}' AND '{end_dt}'"
+    if filter_level == "කලාප මට්ටමින්": query += f" AND zone = '{zone_sel}'"
+    elif filter_level == "සේනාංක මට්ටමින්": query += f" AND division = '{div_sel}'"
+    else: query += f" AND camp = '{camp_sel}'"
+        
+    df = pd.read_sql_query(query, conn)
     conn.close()
-    if not df_r.empty:
+
+    if not df.empty:
         if is_admin:
-            edited_r = st.data_editor(df_r, num_rows="dynamic", use_container_width=True, key="ed_r", hide_index=True)
-            if st.button("Raid Database Update"):
-                conn = sqlite3.connect('police_master_system.db'); cursor = conn.cursor()
-                cursor.execute(f"DELETE FROM detailed_raids WHERE id IN ({','.join(map(str, df_r['id'].tolist()))})")
-                edited_r.to_sql('detailed_raids', conn, if_exists='append', index=False)
-                conn.commit(); conn.close(); st.success("Updated!"); st.rerun()
-        else: st.dataframe(df_r, use_container_width=True)
-
-with tab5:
-    st.header(f"📊 දෛනික භට සංඛ්‍යා වාර්තාව")
-    conn = sqlite3.connect('police_master_system.db')
-    # මෙතනදී column එකක් නැති වුණොත් එන ප්‍රශ්නය විසඳා ඇත
-    try:
-        df_f = pd.read_sql_query(f"SELECT zone, division, camp, SSP, SP, ASP, CI, IP, SI, PS, PSD, PC, PCD, total FROM force_stats WHERE division = '{div_sel}'", conn)
-        if not df_f.empty:
-            df_f.columns = ['කලාපය', 'සේනාංකය', 'කදවුර', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PSD', 'PC', 'PCD', 'එකතුව']
-            numeric_cols = ['SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PSD', 'PC', 'PCD', 'එකතුව']
-            totals = df_f[numeric_cols].sum().to_frame().T
-            totals['කලාපය'] = ''; totals['සේනාංකය'] = 'මුළු එකතුව'; totals['කදවුර'] = ''
-            display_df = pd.concat([df_f, totals], ignore_index=True)
-            st.table(display_df)
+            st.info("💡 Admin Mode: ඔබට දත්ත මත කෙලින්ම Click කර Edit කිරීමට හෝ පේළි තෝරා Delete කිරීමට හැක. ඉන්පසු පහත බටන් එක ඔබන්න.")
             
-            if is_admin:
-                st.divider()
-                st.subheader("⚙️ දත්ත සංස්කරණය")
-                df_edit_f = pd.read_sql_query(f"SELECT * FROM force_stats WHERE division = '{div_sel}'", conn)
-                edited_f = st.data_editor(df_edit_f, num_rows="dynamic", use_container_width=True, key="ed_f", hide_index=True)
-                if st.button("Force Database Update"):
+            # මෙන්න මේක තමයි Edit/Delete Table එක
+            edited_df = st.data_editor(
+                df, 
+                num_rows="dynamic", 
+                use_container_width=True, 
+                key="raid_editor_pro",
+                hide_index=True
+            )
+            
+            if st.button("පද්ධතිය යාවත්කාලීන කරන්න (Update/Delete)", type="primary"):
+                try:
+                    conn = sqlite3.connect('police_master_system.db')
+                    # පරණ දත්ත ඉවත් කර Edit කරපු අලුත් දත්ත ඇතුළත් කිරීම
                     cursor = conn.cursor()
-                    cursor.execute(f"DELETE FROM force_stats WHERE id IN ({','.join(map(str, df_edit_f['id'].tolist()))})")
-                    edited_f.to_sql('force_stats', conn, if_exists='append', index=False)
-                    conn.commit(); st.success("Updated!"); st.rerun()
+                    # දැනට තෝරාගෙන ඇති Query එකට අදාළ දත්ත පමණක් මකා අලුත් ඒවා දමයි
+                    delete_ids = df['id'].tolist()
+                    cursor.execute(f'DELETE FROM detailed_raids WHERE id IN ({",".join(map(str, delete_ids))})')
+                    edited_df.to_sql('detailed_raids', conn, if_exists='append', index=False)
+                    conn.commit()
+                    conn.close()
+                    st.success("දත්ත පද්ධතිය සාර්ථකව යාවත්කාලීන විය!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"දෝෂයක්: {e}")
         else:
-            st.info("දත්ත නැත.")
-    except Exception as e:
-        st.error("Database එක යාවත්කාලීන වෙමින් පවතී. කරුණාකර මද වෙලාවකින් උත්සාහ කරන්න හෝ Database එක Reset කරන්න.")
-    finally:
-        conn.close()
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.warning("⚠️ දත්ත වෙනස් කිරීමට හෝ මැකීමට Admin Key එක ඇතුළත් කරන්න.")
 
-# අනෙක් Tab දෙක (විශ්ලේෂණය සහ සටහන්)
+        # Excel Download
+        output = io.BytesIO()
+        df.to_excel(output, index=False, engine='xlsxwriter')
+        st.download_button(label="📥 Excel වාර්තාව බාගත කරන්න", data=output.getvalue(), file_name=f"STF_Report.xlsx")
+    else:
+        st.info("තෝරාගත් කාල සීමාව සඳහා දත්ත නැත.")
+
+# --- TAB 3: Visual Analysis ---
 with tab3:
-    conn = sqlite3.connect('police_master_system.db'); df_all = pd.read_sql_query("SELECT * FROM detailed_raids", conn); conn.close()
-    if not df_all.empty: st.plotly_chart(px.bar(df_all, x="zone", y="suspects", color="division"), use_container_width=True)
+    st.header("📈 විශ්ලේෂණ සාරාංශය")
+    conn = sqlite3.connect('police_master_system.db')
+    df_all = pd.read_sql_query("SELECT * FROM detailed_raids", conn)
+    conn.close()
+    if not df_all.empty:
+        col_a, col_b = st.columns(2)
+        with col_a:
+            fig1 = px.bar(df_all, x="zone", y="suspects", color="division", barmode="group", title="කලාපීය සැකකරුවන්")
+            st.plotly_chart(fig1, use_container_width=True)
+        with col_b:
+            fig2 = px.pie(df_all, names="division", values="suspects", hole=0.4, title="සේනාංක අනුව වැටලීම්")
+            st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.warning("විශ්ලේෂණය කිරීමට ප්‍රමාණවත් දත්ත නැත.")
 
+# --- TAB 4: Notes ---
 with tab4:
-    note_in = st.text_area("සටහන")
+    st.subheader("📝 පද්ධති සටහන් (Log)")
+    note_in = st.text_area("වැදගත් සටහන් මෙතන ලියන්න")
     if st.button("Save Note"):
         conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
         c.execute('INSERT INTO system_notes (username, date, note) VALUES (?,?,?)', (st.session_state['username'], datetime.now().strftime("%Y-%m-%d %H:%M"), note_in))
-        conn.commit(); conn.close(); st.success("Saved!"); st.rerun()
+        conn.commit(); conn.close(); st.success("සටහන සුරැකිණි!"); st.rerun()
 
 if st.sidebar.button("Logout"):
     st.session_state['logged_in'] = False; st.rerun()
