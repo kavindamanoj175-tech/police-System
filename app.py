@@ -52,49 +52,6 @@ if not st.session_state['logged_in']:
             st.rerun()
     st.stop()
 
-# --- Sidebar එකට අලුත් දේවල් එකතු කිරීම ---
-st.sidebar.divider() # වෙන් කිරීමක් දාන්න
-
-import time # මේක උඩම import කරගන්න
-
-# --- සජීවී වේලාව ශ්‍රී ලංකාවේ වෙලාවට (Live Clock) ---
-st.sidebar.divider()
-st.sidebar.subheader("📅 වත්මන් වේලාව")
-
-# වෙලාව පෙන්වන්න හිස් තැනක් (Placeholder) එකක් හදනවා
-clock_placeholder = st.sidebar.empty()
-
-# ලංකාවේ වෙලාව හදාගන්න විදිහ
-from datetime import timedelta
-# UTC වෙලාවට පැය 5.5 ක් එකතු කරනවා
-sl_time = datetime.now() + timedelta(hours=5, minutes=30)
-
-# Sidebar එකේ වෙලාව update කරනවා
-clock_placeholder.markdown(f"""
-    ### {sl_time.strftime('%Y-%m-%d')}
-    ## {sl_time.strftime('%H:%M:%S')}
-""")
-
-st.sidebar.divider()
-
-# 2. ඉක්මන් පිවිසුම් (Quick Links) - Buttons විදිහට
-st.sidebar.subheader("🌐 Quick Access")
-
-# WhatsApp link එකේ ඔයාගේ නම්බර් එක දාන්නත් පුළුවන්
-if st.sidebar.button("💬 WhatsApp"):
-    js = "window.open('https://web.whatsapp.com/')"
-    st.components.v1.html(f"<script>{js}</script>", height=0)
-
-if st.sidebar.button("📺 YouTube"):
-    js = "window.open('https://www.youtube.com/')"
-    st.components.v1.html(f"<script>{js}</script>", height=0)
-
-if st.sidebar.button("🔍 Google Search"):
-    js = "window.open('https://www.google.com')"
-    st.components.v1.html(f"<script>{js}</script>", height=0)
-
-st.sidebar.divider()
-
 # --- 4. Hierarchy & Navigation ---
 hierarchy = {
     "යාපනය කලාපය": {
