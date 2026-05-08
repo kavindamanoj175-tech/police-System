@@ -61,6 +61,11 @@ def init_db():
     conn.close()
 
 # --- 4. Sidebar ---
+# ලාංඡනය ඇතුළත් කිරීම (Sidebar title එකට උඩින්)
+# 'logo.png' වෙනුවට ඔයාගේ ලෝගෝ ෆයිල් එකේ නම දෙන්න
+st.sidebar.image("logo.png", use_container_width=True)
+
+st.sidebar.title("👮 STF DBMS - v2.0")
 st.sidebar.title("👮 STF DBMS - Admin Control")
 sl_time = datetime.now() + timedelta(hours=5, minutes=30)
 st.sidebar.markdown(f"📅 **{sl_time.strftime('%Y-%m-%d')}** | ⏰ **{sl_time.strftime('%H:%M:%S')}**")
