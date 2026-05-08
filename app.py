@@ -4,6 +4,9 @@ import sqlite3
 import hashlib
 from datetime import datetime, timedelta
 import io
+import plotly.express as px  # අලුතින් එකතු කළා (Charts සඳහා)
+from fpdf import FPDF       # අලුතින් එකතු කළා (PDF සඳහා)
+import requests             # අලුතින් එකතු කළා (Alerts සඳහා)
 
 # --- 1. පද්ධති සැකසුම් ---
 st.set_page_config(page_title="STF - Security Data Management", page_icon="👮", layout="wide")
@@ -11,18 +14,49 @@ st.set_page_config(page_title="STF - Security Data Management", page_icon="👮"
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
+# --- අලුතින් එකතු කළ උපකාරක Function (PDF සෑදීම) ---
+def generate_pdf(df, title):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(190, 10, txt=f"STF REPORT: {title}", ln=True, align='C')
+    pdf.set_font("Arial", size=10)
+    pdf.cell(190, 10, txt=f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True, align='C')
+    pdf.ln(10)
+    
+    # Header
+    pdf.set_font("Arial", 'B', 8)
+    cols = df.columns.tolist()[:8] # ඉඩ මදි නිසා වැදගත්ම columns 8 ක් පමණක් ගනිමු
+    for col in cols:
+        pdf.cell(23, 10, str(col), border=1)
+    pdf.ln()
+    
+    # Rows
+    pdf.set_font("Arial", size=8)
+    for index, row in df.iterrows():
+        for col in cols:
+            pdf.cell(23, 10, str(row[col]), border=1)
+        pdf.ln()
+    return pdf.output(dest='S').encode('latin-1')
+
+# --- අලුතින් එකතු කළ උපකාරක Function (WhatsApp/SMS Alert) ---
+def send_admin_alert(user_name):
+    # මචන් මෙතනට ඔයාගේ Phone Number එක සහ CallMeBot API Key එක දාන්න
+    # api_key = "ඔයාගේ_KEY_එක"
+    # phone = "947XXXXXXXX"
+    # url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text=New+User+Registration:+{user_name}&apikey={api_key}"
+    # try: requests.get(url)
+    # except: pass
+    pass
+
 # --- 2. Database Functions ---
 def init_db():
     conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
     c = conn.cursor()
-    # UserTable එකට 'role' සහ අලුතින් 'status' (Pending/Approved) එකතු කළා
-    # Username එක PRIMARY KEY කළා එකම නමින් දෙන්නෙක් එන එක වැලැක්වීමට
     c.execute('CREATE TABLE IF NOT EXISTS userstable (username TEXT PRIMARY KEY, password TEXT, role TEXT, status TEXT)')
-    
-    # පරණ Table එකට 'status' කියන කොටස බලෙන්ම ඇතුල් කිරීමට (Alter Table):
     try:
         c.execute('ALTER TABLE userstable ADD COLUMN status TEXT DEFAULT "Approved"')
-    except: pass # දැනටමත් තියෙනවා නම් Error එකක් නොදී ඉන්න
+    except: pass 
     
     c.execute('''CREATE TABLE IF NOT EXISTS detailed_raids 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time TEXT, zone TEXT, division TEXT, camp TEXT,
@@ -44,7 +78,6 @@ def login_user(username, password):
         c.execute('SELECT * FROM userstable WHERE username =? AND password =?', (username, password))
         return c.fetchone()
 
-# පද්ධතිය ආරම්භයේදීම DB එක සකසයි
 init_db()
 
 # --- 3. Session State ---
@@ -54,10 +87,8 @@ if 'logged_in' not in st.session_state:
     st.session_state['role'] = 'User'
 
 # --- 4. Sidebar ---
-# ලාංඡනය ඇතුළත් කිරීම (Sidebar title එකට උඩින්)
 st.sidebar.image("logo.png", use_container_width=True)
-
-st.sidebar.title("👮 STF DBMS - v2.0")
+st.sidebar.title("👮 STF DBMS - v3.0 Pro")
 sl_time = datetime.now() + timedelta(hours=5, minutes=30)
 st.sidebar.markdown(f"📅 **{sl_time.strftime('%Y-%m-%d')}** | ⏰ **{sl_time.strftime('%H:%M:%S')}**")
 st.sidebar.divider()
@@ -72,33 +103,31 @@ if not st.session_state['logged_in']:
         if st.sidebar.button("Login"):
             res = login_user(u, make_hashes(p))
             if res:
-                # ආරක්ෂක පරීක්ෂාව: Admin Approve කරලා තියෙනවා නම් විතරක් ඇතුලට ගන්න
                 if res[3] == "Approved":
                     st.session_state['logged_in'] = True
                     st.session_state['username'] = res[0]
-                    st.session_state['role'] = res[2] # Role එක මතක තබා ගනී
+                    st.session_state['role'] = res[2] 
                     st.rerun()
                 else:
-                    st.sidebar.warning("ඔබේ ගිණුම තවමත් අනුමත කර නැත. කරුණාකර Admin අනුමැතිය ලැබෙන තෙක් රැඳී සිටින්න.")
+                    st.sidebar.warning("ඔබේ ගිණුම තවමත් අනුමත කර නැත.")
             else: st.sidebar.error("Username හෝ Password වැරදියි!")
     else:
         admin_key = st.sidebar.text_input("Admin Key (Account Creation - optional)", type='password')
         if st.sidebar.button("ගිණුම සාදන්න"):
-            # Admin Key එක නිවැරදි නම් කෙලින්ම Approved, නැත්නම් Pending
             role = "Admin" if admin_key == "Police@123" else "User"
             status = "Approved" if admin_key == "Police@123" else "Pending"
-            
             try:
                 with sqlite3.connect('police_master_system.db') as conn:
                     conn.execute('INSERT INTO userstable(username, password, role, status) VALUES (?,?,?,?)', (u, make_hashes(p), role, status))
                     conn.commit()
                 if status == "Pending":
-                    st.sidebar.info("ගිණුම සාර්ථකව සැදුණි! Admin විසින් අනුමත කළ පසු ඔබට ඇතුල් විය හැක.")
+                    st.sidebar.info("සාර්ථකයි! Admin අනුමැතිය ලැබෙන තෙක් රැඳී සිටින්න.")
+                    send_admin_alert(u) # Admin හට alert එකක් යවයි
                 else:
-                    st.sidebar.success(f"{u} ({role}) සාර්ථකයි! දැන් Login වන්න.")
+                    st.sidebar.success(f"{u} ({role}) සාර්ථකයි!")
             except sqlite3.IntegrityError:
-                st.sidebar.error("මේ පරිශීලක නාමය දැනටමත් පද්ධතියේ ඇත. කරුණාකර වෙනත් නමක් භාවිතා කරන්න.")
-            except: st.sidebar.error("ගිණුම සෑදීමේ ගැටලුවක්!")
+                st.sidebar.error("මේ පරිශීලක නාමය දැනටමත් ඇත.")
+            except: st.sidebar.error("ගැටලුවක්!")
     st.stop()
 
 # --- 6. Content (After Login) ---
@@ -151,7 +180,7 @@ current_tab = st.radio("ප්‍රධාන මෙනුව", tabs_list, horiz
 
 def get_db(): return sqlite3.connect('police_master_system.db')
 
-# (ඔයාගේ Raid, Force, Vehicle කෝඩ් එක ඒ විදිහටම තියෙනවා)
+# --- RAID TAB ---
 if current_tab == "📝 වැටලීම්":
     st.subheader(f"වැටලීම් - {sub_camp}")
     with st.form("raid_form", clear_on_submit=True):
@@ -167,8 +196,9 @@ if current_tab == "📝 වැටලීම්":
                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
                              (sl_time.strftime("%Y-%m-%d"), sl_time.strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, kg, hr, mx, liq, gd, stmb, sus, info))
                 conn.commit()
-            st.success("සාර්ථකයි!")
+            st.success("දත්ත සාර්ථකව සුරැකිණි!")
 
+# --- FORCE TAB ---
 elif current_tab == "📉 භට පිරිස්":
     st.subheader(f"භට පිරිස් - {sub_camp}")
     with st.form("force_form", clear_on_submit=True):
@@ -185,6 +215,7 @@ elif current_tab == "📉 භට පිරිස්":
                 conn.commit()
             st.success("භට පිරිස් දත්ත යාවත්කාලීන විය!")
 
+# --- VEHICLE TAB ---
 elif current_tab == "🚔 වාහන":
     st.subheader(f"වාහන පාලනය - {sub_camp}")
     v_tab1, v_tab2 = st.tabs(["➕ ඇතුළත් කිරීම", "📋 ලේඛනය"])
@@ -206,20 +237,32 @@ elif current_tab == "🚔 වාහන":
         st.dataframe(pd.read_sql_query("SELECT * FROM vehicle_records WHERE zone=?", conn, params=(zone_sel,)), use_container_width=True)
         conn.close()
 
-# --- TAB 4: වාර්තා සහ ADMIN CONTROL (මෙහි අනුමැතිය දෙන කොටස ඇතුළත් කළා) ---
+# --- REPORT TAB (PDF සහ Excel එකතු කළා) ---
 elif current_tab == "🔍 වාර්තා":
     st.subheader("🔍 දත්ත වාර්තා සහ පරිශීලක පාලනය")
     
     if st.session_state['role'] == "Admin":
-        # Admin ට උප-ටැබ් දෙකක් පෙන්වයි
-        admin_tab1, admin_tab2 = st.tabs(["📊 දත්ත වාර්තා", "👤 පරිශීලක අනුමැතිය (User Approvals)"])
+        admin_tab1, admin_tab2 = st.tabs(["📊 දත්ත වාර්තා", "👤 පරිශීලක අනුමැතිය"])
         
         with admin_tab1:
-            st.subheader("දත්ත සංස්කරණය")
-            rep_type = st.selectbox("වර්ගය", ["detailed_raids", "force_details", "vehicle_records"])
+            rep_type = st.selectbox("දත්ත වර්ගය තෝරන්න", ["detailed_raids", "force_details", "vehicle_records"])
             conn = get_db()
             df = pd.read_sql_query(f"SELECT * FROM {rep_type} WHERE zone=?", conn, params=(zone_sel,))
-            st.warning("ඔබ Admin බැවින් දත්ත සංස්කරණය කළ හැක.")
+            
+            # Download Section
+            col_ex, col_pdf = st.columns(2)
+            # Excel
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name='Report')
+            col_ex.download_button(label="📥 Excel බාගත කරන්න", data=output.getvalue(), file_name=f"{rep_type}.xlsx")
+            
+            # PDF
+            if col_pdf.button("📄 PDF වාර්තාව සකසන්න"):
+                pdf_data = generate_pdf(df, rep_type.replace('_', ' ').upper())
+                st.download_button(label="📥 PDF බාගත කරන්න", data=pdf_data, file_name=f"{rep_type}.pdf", mime="application/pdf")
+            
+            st.divider()
             edited = st.data_editor(df, num_rows="dynamic")
             if st.button("වෙනස්කම් සුරකින්න"):
                 edited.to_sql(rep_type, conn, if_exists='replace', index=False)
@@ -229,35 +272,47 @@ elif current_tab == "🔍 වාර්තා":
         with admin_tab2:
             st.subheader("අනුමැතිය අපේක්ෂිත නව ගිණුම්")
             conn = get_db()
-            # Pending තත්ත්වයේ ඉන්න Users ලාව ගන්නවා
             pending_users = pd.read_sql_query("SELECT username, role, status FROM userstable WHERE status='Pending'", conn)
-            
             if not pending_users.empty:
                 for index, row in pending_users.iterrows():
                     col1, col2, col3 = st.columns([2, 1, 1])
-                    col1.write(f"පරිශීලක: **{row['username']}** | ශ්‍රේණිය: **{row['role']}**")
-                    # Approve බොත්තම
+                    col1.write(f"**{row['username']}** ({row['role']})")
                     if col2.button("Approve", key=f"app_{row['username']}"):
                         conn.execute("UPDATE userstable SET status='Approved' WHERE username=?", (row['username'],))
-                        conn.commit()
-                        st.success(f"{row['username']} සාර්ථකව අනුමත කරන ලදී!")
-                        st.rerun()
-                    # Delete බොත්තම
-                    if col3.button("Reject/Delete", key=f"del_{row['username']}"):
+                        conn.commit(); st.rerun()
+                    if col3.button("Reject", key=f"del_{row['username']}"):
                         conn.execute("DELETE FROM userstable WHERE username=?", (row['username'],))
-                        conn.commit()
-                        st.warning(f"{row['username']} ගිණුම මකා දමන ලදී!")
-                        st.rerun()
-            else:
-                st.info("අනුමත කිරීමට නව ගිණුම් කිසිවක් නැත.")
+                        conn.commit(); st.rerun()
+            else: st.info("අලුත් ගිණුම් නැත.")
             conn.close()
-            
     else:
-        # සාමාන්‍ය User ට පරණ විදිහටම දත්ත පෙන්වයි
         rep_type = st.selectbox("වර්ගය", ["detailed_raids", "force_details", "vehicle_records"])
         conn = get_db()
         st.dataframe(pd.read_sql_query(f"SELECT * FROM {rep_type} WHERE zone=?", conn, params=(zone_sel,)), use_container_width=True)
         conn.close()
 
+# --- ANALYSIS TAB (Charts එකතු කළා) ---
 elif current_tab == "📊 විශ්ලේෂණය":
-    st.info("දත්ත විශ්ලේෂණ ප්‍රස්ථාර මෙහි පෙන්වයි.")
+    st.subheader("📊 තත්‍ය කාලීන දත්ත විශ්ලේෂණය")
+    conn = get_db()
+    df_raids = pd.read_sql_query("SELECT * FROM detailed_raids", conn)
+    
+    if not df_raids.empty:
+        c1, c2 = st.columns(2)
+        
+        # Chart 1: මත්ද්‍රව්‍ය වැටලීම් සාරාංශය (Bar Chart)
+        drug_data = df_raids[['ice', 'kerala_ganja', 'heroin', 'mandrax']].sum().reset_index()
+        drug_data.columns = ['වර්ගය', 'මුළු ප්‍රමාණය (ග්‍රෑම්/කිග්‍රෑ)']
+        fig1 = px.bar(drug_data, x='වර්ගය', y='මුළු ප්‍රමාණය (ග්‍රෑම්/කිග්‍රෑ)', color='වර්ගය', title="මත්ද්‍රව්‍ය වැටලීම් සාරාංශය")
+        c1.plotly_chart(fig1, use_container_width=True)
+        
+        # Chart 2: සැකකරුවන් ප්‍රමාණය (Pie Chart)
+        fig2 = px.pie(df_raids, values='suspects', names='camp', title="කදවුරු අනුව සැකකරුවන් අත්අඩංගුවට ගැනීම")
+        c2.plotly_chart(fig2, use_container_width=True)
+        
+        # Chart 3: කාලය අනුව වැටලීම් (Line Chart)
+        fig3 = px.line(df_raids, x='date', y='ice', title="දින අනුව අයිස් (ICE) වැටලීම් ප්‍රවණතාවය")
+        st.plotly_chart(fig3, use_container_width=True)
+    else:
+        st.info("පෙන්වීමට දත්ත ප්‍රමාණවත් නැත.")
+    conn.close()
