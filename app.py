@@ -55,10 +55,25 @@ if not st.session_state['logged_in']:
 # --- Sidebar එකට අලුත් දේවල් එකතු කිරීම ---
 st.sidebar.divider() # වෙන් කිරීමක් දාන්න
 
-# 1. සජීවී වේලාව සහ දිනය (Live Time & Date)
-now = datetime.now()
-st.sidebar.markdown(f"### 📅 {now.strftime('%Y-%m-%d')}")
-st.sidebar.markdown(f"### ⏰ {now.strftime('%H:%M:%S')}")
+import time # මේක උඩම import කරගන්න
+
+# --- සජීවී වේලාව ශ්‍රී ලංකාවේ වෙලාවට (Live Clock) ---
+st.sidebar.divider()
+st.sidebar.subheader("📅 වත්මන් වේලාව")
+
+# වෙලාව පෙන්වන්න හිස් තැනක් (Placeholder) එකක් හදනවා
+clock_placeholder = st.sidebar.empty()
+
+# ලංකාවේ වෙලාව හදාගන්න විදිහ
+from datetime import timedelta
+# UTC වෙලාවට පැය 5.5 ක් එකතු කරනවා
+sl_time = datetime.now() + timedelta(hours=5, minutes=30)
+
+# Sidebar එකේ වෙලාව update කරනවා
+clock_placeholder.markdown(f"""
+    ### {sl_time.strftime('%Y-%m-%d')}
+    ## {sl_time.strftime('%H:%M:%S')}
+""")
 
 st.sidebar.divider()
 
