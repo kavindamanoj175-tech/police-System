@@ -45,6 +45,21 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
     st.session_state['role'] = 'User'
 
+def init_db():
+    conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS userstable (username TEXT, password TEXT, role TEXT)')
+    
+    # පරණ Table එකට 'role' කියන කොටස බලෙන්ම ඇතුල් කිරීමට (Alter Table):
+    try:
+        c.execute('ALTER TABLE userstable ADD COLUMN role TEXT DEFAULT "User"')
+    except:
+        pass # දැනටමත් තියෙනවා නම් Error එකක් නොදී ඉන්න
+    
+    # ... (අනිත් Tables ඒ විදිහටම තියෙන්න දෙන්න)
+    conn.commit()
+    conn.close()
+
 # --- 4. Sidebar ---
 st.sidebar.title("👮 STF DBMS - Admin Control")
 sl_time = datetime.now() + timedelta(hours=5, minutes=30)
