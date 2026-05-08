@@ -189,7 +189,7 @@ elif current_tab == "🚔 වාහන කළමනාකරණය":
         with st.form("vehicle_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             v_no = col1.text_input("වාහන අංකය")
-            v_type = col1.selectbox("වාහන වර්ගය", ["Land Rover", "Jeep", "Cab", "Truck", "Motorbike", "Bus"])
+            v_type = col1.selectbox("වාහන වර්ගය", ["Land Rover", "Jeep", "Cab", "Truck", "Motorbike", "Bus", "Bowser", "Land Master", "Trackter",])
             s_type = col1.selectbox("සේවා වර්ගය", ["නැත", "Normal Service", "Full Service"])
             s_station = col1.text_input("සේවාව කළ ස්ථානය")
             r_loc = col2.text_input("අලුත්වැඩියාවට යැවූ ස්ථානය")
