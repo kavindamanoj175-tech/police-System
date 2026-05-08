@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 
 # --- 1. පද්ධති සැකසුම් ---
@@ -35,32 +35,60 @@ def login_user(username, password):
 
 init_db()
 
-# --- 3. Sidebar & Auth ---
-if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
-if 'nav_selection' not in st.session_state: st.session_state['nav_selection'] = "📝 වැටලීම් ඇතුළත් කිරීම"
+# --- 3. Session State & Sidebar ---
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
 
-st.sidebar.title("👮 STF DBMS - v2.0")
+st.sidebar.title("👮 STF DBMS")
+
+# ලංකාවේ වේලාව (UTC + 5:30)
+sl_time = datetime.now() + timedelta(hours=5, minutes=30)
+st.sidebar.markdown(f"📅 **{sl_time.strftime('%Y-%m-%d')}**")
+st.sidebar.markdown(f"⏰ **{sl_time.strftime('%H:%M:%S')}**")
+st.sidebar.divider()
 
 if not st.session_state['logged_in']:
     auth_mode = st.sidebar.selectbox("පද්ධතියට ඇතුල් වන්න", ["Login", "Sign Up"])
     u = st.sidebar.text_input("User Name")
     p = st.sidebar.text_input("Password", type='password')
-    if st.sidebar.button("ඇතුල් වන්න"):
-        res = login_user(u, make_hashes(p))
-        if res:
-            st.session_state['logged_in'] = True
-            st.rerun()
+    if auth_mode == "Login":
+        if st.sidebar.button("ඇතුල් වන්න"):
+            res = login_user(u, make_hashes(p))
+            if res:
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = u
+                st.rerun()
+            else: st.sidebar.error("Username හෝ Password වැරදියි!")
+    else:
+        key = st.sidebar.text_input("Admin Key", type="password")
+        if st.sidebar.button("ගිණුම සාදන්න"):
+            if key == "Police@123":
+                with sqlite3.connect('police_master_system.db') as conn:
+                    conn.execute('INSERT INTO userstable(username, password) VALUES (?,?)', (u, make_hashes(p)))
+                st.sidebar.success("දැන් Login වන්න.")
+            else: st.sidebar.error("Admin Key වැරදියි!")
     st.stop()
 
-# --- 4. Hierarchy & Navigation ---
+# --- Quick Links ---
+st.sidebar.subheader("🌐 Quick Access")
+st.sidebar.link_button("💬 WhatsApp Web", "https://web.whatsapp.com/")
+st.sidebar.link_button("📺 YouTube", "https://www.youtube.com/")
+st.sidebar.link_button("🔍 Google Search", "https://www.google.com")
+st.sidebar.divider()
+
+# --- 4. සම්පූර්ණ Hierarchy (කඳවුරු සියල්ලම) ---
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
             "වි.කා.බ යාපනය කදවුර": ["ප්‍රධාන කදවුර"],
             "වි.කා.බ නෙල්ලිඅඩි කදවුර": ["ප්‍රධාන කදවුර", "වි.කා.බ කුඩත්තනේ උප කදවුර"],
             "වි.කා.බ කිලිනොච්චිය කදවුර": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ මුලතිව් කදවුර": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ මාන්කුලම් කදවුර": ["ප්‍රධාන කදවුර", "වි.කා.බ පුලියන්කුලම් උප කදවුර"]
         },
         "මන්නාරම සේනාංකය": {
+            "වි.කා.බ පුඅවරසන්කුලම්": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ පරයනාලන්කුලම්": ["ප්‍රධාන කදවුර", "වි.කා.බ මරිච්චීකට්ටී උප කදවුර"],
             "වි.කා.බ මන්නාරම": ["ප්‍රධාන කදවුර"],
             "වි.කා.බ ඉලුප්පුකඩවායි": ["ප්‍රධාන කදවුර"]
         }
@@ -68,7 +96,15 @@ hierarchy = {
     "වව්නියාව කලාපය": {
         "වව්නියාව සේනාංකය": {
             "වි.කා.බ වව්නියාව කදවුර": ["ප්‍රධාන කදවුර"],
-            "වි.කා.බ අනුරාධපුර කදවුර": ["ප්‍රධාන කදවුර"]
+            "වි.කා.බ අනුරාධපුර කදවුර": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ කැබිතිගොල්ලෑව කදවුර": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ සෙට්ටිකුලම් කදවුර": ["ප්‍රධාන කදවුර"]
+        },
+        "ත්‍රිකුණාමලය සේනාංකය": {
+            "වි.කා.බ ත්‍රිකුණාමලය කදවුර": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ වාකරේ කදවුර": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ කන්තලේ කදවුර": ["ප්‍රධාන කදවුර"],
+            "වි.කා.බ පුල්මුඩේ කදවුර": ["ප්‍රධාන කදවුර"]
         }
     }
 }
@@ -78,25 +114,22 @@ div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel]
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
 sub_camp = st.sidebar.selectbox("උප කදවුර / ස්ථානය", hierarchy[zone_sel][div_sel][main_camp])
 
-admin_key = st.sidebar.text_input("Admin Access Key", type="password")
-is_admin = (admin_key == "Police@123")
+admin_access = st.sidebar.text_input("Admin Key (Editing)", type="password")
+is_admin = (admin_access == "Police@123")
 
 if st.sidebar.button("Logout"):
     st.session_state['logged_in'] = False
     st.rerun()
 
-# --- 5. Main Tabs ---
+# --- 5. Main Content Tabs ---
 tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "📉 භට පිරිස් දත්ත", "🔍 වාර්තා හා සෙවීම්", "📊 විශ්ලේෂණය"]
 current_tab = st.radio("මෙනුව", tabs_list, horizontal=True)
 
-# ඩේටාබේස් කනෙක්ෂන් එක පහසුවෙන් පාවිච්චි කිරීමට
-def get_db_connection():
-    return sqlite3.connect('police_master_system.db')
+def get_db(): return sqlite3.connect('police_master_system.db')
 
-# --- TAB 1: RAID ENTRY ---
 if current_tab == "📝 වැටලීම් ඇතුළත් කිරීම":
-    st.subheader(f"නව වැටලීම් වාර්තාව: {sub_camp}")
-    with st.form("raid_form"):
+    st.subheader(f"වැටලීම් වාර්තාව: {sub_camp}")
+    with st.form("raid_form", clear_on_submit=True):
         c1, c2, c3, c4 = st.columns(4)
         ice = c1.number_input("අයිස් (ග්‍රෑම්)", 0.0)
         kg = c2.number_input("කේරළ ගංජා (කිග්‍රෑ)", 0.0)
@@ -106,86 +139,57 @@ if current_tab == "📝 වැටලීම් ඇතුළත් කිරීම
         gd = c2.number_input("ගෝඩා (L)", 0.0)
         stmb = c3.number_input("වැලි/දැව (වාර්තා)", 0.0)
         sus = c4.number_input("සැකකරුවන් ගණන", 0)
-        info = st.text_area("විශේෂ සටහන් (අවශ්‍යයි)")
-        
+        info = st.text_area("අමතර විස්තර")
         if st.form_submit_button("දත්ත සුරකින්න"):
-            if info == "":
-                st.error("කරුණාකර විශේෂ සටහන් හෝ වැටලීම් විස්තර ඇතුළත් කරන්න!")
-            else:
-                with get_db_connection() as conn:
-                    conn.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, mandrax, illegal_liquor, goda, sand_timber, suspects, other_records) 
-                                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                                 (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, kg, hr, mx, liq, gd, stmb, sus, info))
-                st.success(f"{datetime.now().strftime('%H:%M')} ට දත්ත සාර්ථකව ගබඩා කරන ලදී.")
+            with get_db() as conn:
+                conn.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, mandrax, illegal_liquor, goda, sand_timber, suspects, other_records) 
+                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                             (sl_time.strftime("%Y-%m-%d"), sl_time.strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, kg, hr, mx, liq, gd, stmb, sus, info))
+            st.success("සාර්ථකව සුරැකිණි!")
 
-# --- TAB 2: FORCE DETAILS ---
 elif current_tab == "📉 භට පිරිස් දත්ත":
-    st.subheader(f"භට පිරිස් දත්ත යාවත්කාලීන කිරීම: {sub_camp}")
+    st.subheader(f"භට පිරිස් දත්ත: {sub_camp}")
     with st.form("force_form"):
         f1, f2, f3 = st.columns(3)
         ssp = f1.number_input("SSP", 0); sp = f2.number_input("SP", 0); asp = f3.number_input("ASP", 0)
         ci = f1.number_input("CI", 0); ip = f2.number_input("IP", 0); si = f3.number_input("SI", 0)
         ps = f1.number_input("PS", 0); pc = f2.number_input("PC", 0)
         cat = st.selectbox("තත්ත්වය", ["මුළු භට සංඛ්‍යාව", "විශේෂ රාජකාරි", "නිවාඩු/විවේක"])
-        
         total = ssp+sp+asp+ci+ip+si+ps+pc
-        st.info(f"වත්මන් මුළු එකතුව: {total}")
-        
-        if st.form_submit_button("දත්ත යාවත්කාලීන කරන්න"):
-            with get_db_connection() as conn:
+        if st.form_submit_button("යාවත්කාලීන කරන්න"):
+            with get_db() as conn:
                 conn.execute('''INSERT INTO force_details (date, zone, division, camp, category, SSP, SP, ASP, CI, IP, SI, PS, PC, row_total) 
                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                             (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, total))
-            st.success("භට පිරිස් දත්ත සාර්ථකව යාවත්කාලීන විය.")
+                             (sl_time.strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, total))
+            st.success("දත්ත යාවත්කාලීන විය!")
 
-# --- TAB 3: REPORTS & EXCEL ---
 elif current_tab == "🔍 වාර්තා හා සෙවීම්":
-    st.subheader("🔍 දත්ත කළමනාකරණය සහ වාර්තා ලබාගැනීම")
-    
-    col_f1, col_f2 = st.columns(2)
-    start_dt = col_f1.date_input("සිට", datetime.now())
-    end_dt = col_f2.date_input("දක්වා", datetime.now())
-    
-    conn = get_db_connection()
-    query = "SELECT * FROM detailed_raids WHERE zone=? AND date BETWEEN ? AND ?"
-    df = pd.read_sql_query(query, conn, params=(zone_sel, start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d")))
-    
+    st.subheader("🔍 වාර්තා පිරික්සුම")
+    col1, col2 = st.columns(2)
+    s_date = col1.date_input("සිට", sl_time)
+    e_date = col2.date_input("දක්වා", sl_time)
+    conn = get_db()
+    df = pd.read_sql_query("SELECT * FROM detailed_raids WHERE zone=? AND date BETWEEN ? AND ?", 
+                           conn, params=(zone_sel, s_date.strftime("%Y-%m-%d"), e_date.strftime("%Y-%m-%d")))
     if not df.empty:
-        # Excel Download Button
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name='Raids')
-        
-        st.download_button(label="📥 Excel වාර්තාව බාගත කරගන්න", data=buffer, file_name=f"STF_Report_{zone_sel}.xlsx", mime="application/vnd.ms-excel")
-        
+        st.download_button("📥 Excel බාගත කරගන්න", output.getvalue(), f"STF_Report_{zone_sel}.xlsx")
         if is_admin:
-            edited_df = st.data_editor(df, num_rows="dynamic")
-            if st.button("වෙනස්කම් සුරකින්න (Save Changes)"):
-                edited_df.to_sql('detailed_raids', conn, if_exists='replace', index=False)
-                st.success("දත්ත යාවත්කාලීන විය!")
-        else:
-            st.dataframe(df)
-    else:
-        st.warning("තෝරාගත් කාල සීමාව සඳහා දත්ත සොයාගත නොහැක.")
+            edited = st.data_editor(df, num_rows="dynamic")
+            if st.button("Save Changes"):
+                edited.to_sql('detailed_raids', conn, if_exists='replace', index=False)
+                st.success("වෙනස්කම් සුරැකිණි!")
+        else: st.dataframe(df)
+    else: st.info("දත්ත සොයාගත නොහැක.")
     conn.close()
 
-# --- TAB 4: ANALYTICS ---
 elif current_tab == "📊 විශ්ලේෂණය":
-    st.subheader(f"📊 {zone_sel} වැටලීම් විශ්ලේෂණය")
-    conn = get_db_connection()
+    st.subheader(f"📊 {zone_sel} විශ්ලේෂණය")
+    conn = get_db()
     df_ana = pd.read_sql_query("SELECT * FROM detailed_raids WHERE zone=?", conn, params=(zone_sel,))
-    
     if not df_ana.empty:
-        # සරල ග්‍රාෆ් එකක් - මත්ද්‍රව්‍ය වර්ග අනුව
-        chart_data = df_ana[['ice', 'kerala_ganja', 'heroin', 'mandrax']].sum()
-        st.bar_chart(chart_data)
-        
-        st.divider()
-        st.subheader("භට පිරිස් සාරාංශය")
-        df_f = pd.read_sql_query("SELECT * FROM force_details WHERE zone=?", conn, params=(zone_sel,))
-        if not df_f.empty:
-            summary = df_f.groupby('category').sum(numeric_only=True).reset_index()
-            st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
-    else:
-        st.info("විශ්ලේෂණය කිරීමට ප්‍රමාණවත් දත්ත නොමැත.")
+        st.bar_chart(df_ana[['ice', 'kerala_ganja', 'heroin', 'mandrax']].sum())
+    else: st.info("දත්ත ප්‍රමාණවත් නැත.")
     conn.close()
