@@ -3,7 +3,6 @@ import pandas as pd
 import sqlite3
 import hashlib
 from datetime import datetime
-from PIL import Image
 
 # --- 1. පද්ධති සැකසුම් ---
 st.set_page_config(
@@ -12,26 +11,22 @@ st.set_page_config(
     layout="wide"
 )
 
-# Password Hashing Functions
+# Password Hashing
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
-
-def check_hashes(password, hashed_text):
-    if make_hashes(password) == hashed_text:
-        return hashed_text
-    return False
 
 # --- 2. Database Functions ---
 def init_db():
     conn = sqlite3.connect('police_master_system.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS userstable (username TEXT, password TEXT)')
+    # Table එකේ columns සියල්ලම හරියටම මෙතන තියෙනවා
     c.execute('''CREATE TABLE IF NOT EXISTS detailed_raids 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   date TEXT, time TEXT, zone TEXT, division TEXT, camp TEXT,
                   ice REAL, kerala_ganja REAL, heroin REAL, mava REAL, 
-                  mandrax REAL, dambul REAL, illegal_liquor REAL, goda REAL,
-                  sand_timber REAL, tobacco REAL, suspects INTEGER,
+                  mandrax REAL, illegal_liquor REAL, goda REAL,
+                  sand_timber REAL, suspects INTEGER,
                   other_records TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS force_details 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, zone TEXT, division TEXT, camp TEXT,
@@ -41,18 +36,16 @@ def init_db():
     conn.close()
 
 def add_userdata(username, password):
-    conn = sqlite3.connect('police_master_system.db')
-    c = conn.cursor()
-    c.execute('INSERT INTO userstable(username, password) VALUES (?,?)', (username, password))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('police_master_system.db') as conn:
+        c = conn.cursor()
+        c.execute('INSERT INTO userstable(username, password) VALUES (?,?)', (username, password))
+        conn.commit()
 
 def login_user(username, password):
-    conn = sqlite3.connect('police_master_system.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM userstable WHERE username =? AND password =?', (username, password))
-    data = c.fetchall()
-    return data
+    with sqlite3.connect('police_master_system.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT * FROM userstable WHERE username =? AND password =?', (username, password))
+        return c.fetchall()
 
 init_db()
 
@@ -61,48 +54,38 @@ tabs_list = ["📝 වැටලීම් ඇතුළත් කිරීම", "�
 
 if 'nav_selection' not in st.session_state:
     st.session_state['nav_selection'] = tabs_list[0]
-
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
-
-def update_nav(index):
-    st.session_state['nav_selection'] = tabs_list[index]
 
 # --- 4. Sidebar & Auth ---
 st.sidebar.title("👮 STF DBMS")
 
-# Login / Sign Up UI
 if not st.session_state['logged_in']:
     auth_mode = st.sidebar.selectbox("තෝරන්න", ["Login", "Sign Up"])
-    
     if auth_mode == "Login":
         u = st.sidebar.text_input("User Name")
         p = st.sidebar.text_input("Password", type='password')
         if st.sidebar.button("Login"):
-            hashed_pswd = make_hashes(p)
-            result = login_user(u, hashed_pswd)
+            result = login_user(u, make_hashes(p))
             if result:
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = u
                 st.rerun()
             else:
                 st.sidebar.error("වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්!")
-    
-    else: # Sign Up Logic
+    else:
         new_user = st.sidebar.text_input("Username")
         new_password = st.sidebar.text_input("Password", type='password')
-        signup_admin_key = st.sidebar.text_input("Admin Key (Required)", type='password')
-        
+        signup_key = st.sidebar.text_input("Admin Key", type='password')
         if st.sidebar.button("Create Account"):
-            if signup_admin_key == "Police@123":
+            if signup_key == "Police@123":
                 add_userdata(new_user, make_hashes(new_password))
-                st.sidebar.success("ගිණුම සාර්ථකව සැකසූ ලදී!")
-                st.sidebar.info("දැන් Login තෝරා ඇතුල් වන්න.")
+                st.sidebar.success("සාර්ථකයි! දැන් Login වන්න.")
             else:
-                st.sidebar.error("Admin Key එක වැරදියි! ඔබට ගිණුමක් සෑදිය නොහැක.")
+                st.sidebar.error("Admin Key වැරදියි!")
     st.stop()
 
-# --- ධුරාවලිය (Hierarchy) ---
+# --- Hierarchy Data ---
 hierarchy = {
     "යාපනය කලාපය": {
         "යාපනය සේනාංකය": {
@@ -125,27 +108,11 @@ hierarchy = {
             "වි.කා.බ අනුරාධපුර කදවුර": ["ප්‍රධාන කදවුර"],
             "වි.කා.බ කැබිතිගොල්ලෑව කදවුර": ["ප්‍රධාන කදවුර"],
             "වි.කා.බ සෙට්ටිකුලම් කදවුර": ["ප්‍රධාන කදවුර"]
-        },
-        "ත්‍රිකුණාමලය සේනාංකය": {
-            "වි.කා.බ ත්‍රිකුණාමලය කදවුර": ["ප්‍රධාන කදවුර"],
-            "වි.කා.බ වාකරේ කදවුර": ["ප්‍රධාන කදවුර"],
-            "වි.කා.බ කන්තලේ කදවුර": ["ප්‍රධාන කදවුර"],
-            "වි.කා.බ පුල්මුඩේ කදවුර": ["ප්‍රධාන කදවුර"]
         }
     }
 }
 
-# Navigation Controls
-col_h1, col_h2, col_h3 = st.sidebar.columns(3)
-current_idx = tabs_list.index(st.session_state['nav_selection'])
-
-if col_h1.button("🏠 Home"): update_nav(0); st.rerun()
-if col_h2.button("⬅️ Back"):
-    if current_idx > 0: update_nav(current_idx - 1); st.rerun()
-if col_h3.button("➡️ Fwd"):
-    if current_idx < len(tabs_list) - 1: update_nav(current_idx + 1); st.rerun()
-
-st.sidebar.divider()
+# Sidebar Selectors
 zone_sel = st.sidebar.selectbox("පාලන කලාපය", list(hierarchy.keys()))
 div_sel = st.sidebar.selectbox("සේනාංකය", list(hierarchy[zone_sel].keys()))
 main_camp = st.sidebar.selectbox("ප්‍රධාන කදවුර", list(hierarchy[zone_sel][div_sel].keys()))
@@ -155,37 +122,40 @@ admin_key_input = st.sidebar.text_input("Edit/Delete Admin Key", type="password"
 is_admin = (admin_key_input == "Police@123")
 
 if st.sidebar.button("Logout"):
-    st.session_state['logged_in'] = False; st.rerun()
+    st.session_state['logged_in'] = False
+    st.rerun()
 
 # --- 5. Main Content ---
-current_tab = st.radio("Navigation", tabs_list, 
+current_tab = st.radio("ප්‍රධාන මෙනුව", tabs_list, 
                        index=tabs_list.index(st.session_state['nav_selection']), 
-                       horizontal=True, 
-                       key="radio_nav",
-                       on_change=lambda: st.session_state.update(nav_selection=st.session_state.radio_nav))
+                       horizontal=True, key="main_nav")
+st.session_state['nav_selection'] = current_tab
 
-if st.session_state['nav_selection'] == "📝 වැටලීම් ඇතුළත් කිරීම":
+if current_tab == "📝 වැටලීම් ඇතුළත් කිරීම":
     st.subheader(f"වැටලීම් වාර්තාව - {sub_camp}")
     with st.form("raid_form", clear_on_submit=True):
         c1, c2, c3, c4 = st.columns(4)
         ice = c1.number_input("අයිස් (ICE) - ග්‍රෑම්", 0.0)
         k_ganja = c2.number_input("කේරළ ගංජා - කි.ග්‍රෑ", 0.0)
         heroin = c3.number_input("හෙරොයින් - ග්‍රෑම්", 0.0)
-        tablet = c4.number_input("මත් කරල් - ග්‍රෑම්", 0.0)
+        mandrax = c4.number_input("මත් කරල් - ග්‍රෑම්", 0.0)
         liq = c1.number_input("මත්පැන් (මිලි ලීටර්)", 0.0)
         goda = c2.number_input("ගෝඩා (ලීටර්)", 0.0)
-        sand = c3.number_input("වැලි වැටලීම්", 0.0)
-        wood = c4.number_input("දැව වැටලීම්", 0.0)
-        suspects = c1.number_input("සැකකරුවන්", 0)
-        other_txt = st.text_area("අමතර විස්තර සහ වෙනත් වැටලීම්")
+        sand_wood = c3.number_input("වැලි/දැව වැටලීම්", 0.0)
+        suspects = c4.number_input("සැකකරුවන්", 0)
+        other_txt = st.text_area("අමතර විස්තර")
+        
         if st.form_submit_button("දත්ත සුරකින්න"):
-            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
-            c.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, illegal_liquor, goda, sand_timber, suspects, other_records) 
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                      (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, liq, goda, sand, suspects, other_txt))
-            conn.commit(); conn.close(); st.success("සාර්ථකව සුරැකිණි!")
+            with sqlite3.connect('police_master_system.db') as conn:
+                cur = conn.cursor()
+                # SQL Injection වලින් ආරක්ෂිතව ඩේටා ඇතුළත් කිරීම
+                cur.execute('''INSERT INTO detailed_raids (date, time, zone, division, camp, ice, kerala_ganja, heroin, mandrax, illegal_liquor, goda, sand_timber, suspects, other_records) 
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                            (datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M"), zone_sel, div_sel, sub_camp, ice, k_ganja, heroin, mandrax, liq, goda, sand_wood, suspects, other_txt))
+                conn.commit()
+            st.success("දත්ත සාර්ථකව සුරැකිණි!")
 
-elif st.session_state['nav_selection'] == "📉 භට පිරිස් දත්ත":
+elif current_tab == "📉 භට පිරිස් දත්ත":
     st.subheader(f"භට පිරිස් දත්ත - {sub_camp}")
     with st.form("force_form", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
@@ -193,33 +163,43 @@ elif st.session_state['nav_selection'] == "📉 භට පිරිස් දත
         ci = f1.number_input("CI", 0); ip = f2.number_input("IP", 0); si = f3.number_input("SI", 0)
         ps = f1.number_input("PS", 0); pc = f2.number_input("PC", 0)
         cat = st.selectbox("තත්ත්වය", ["මුළු භට සංඛ්‍යාව", "01 විශේෂ රාජකාරි", "02 නිවාඩු/විවේක"])
+        
         if st.form_submit_button("යාවත්කාලීන කරන්න"):
-            conn = sqlite3.connect('police_master_system.db'); c = conn.cursor()
             total = ssp+sp+asp+ci+ip+si+ps+pc
-            c.execute('''INSERT INTO force_details (date, zone, division, camp, category, SSP, SP, ASP, CI, IP, SI, PS, PC, row_total) 
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                      (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, total))
-            conn.commit(); conn.close(); st.success("භට පිරිස් දත්ත සුරැකිණි!")
+            with sqlite3.connect('police_master_system.db') as conn:
+                cur = conn.cursor()
+                cur.execute('''INSERT INTO force_details (date, zone, division, camp, category, SSP, SP, ASP, CI, IP, SI, PS, PC, row_total) 
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                            (datetime.now().strftime("%Y-%m-%d"), zone_sel, div_sel, sub_camp, cat, ssp, sp, asp, ci, ip, si, ps, pc, total))
+                conn.commit()
+            st.success("භට පිරිස් දත්ත යාවත්කාලීන විය!")
 
-elif st.session_state['nav_selection'] == "🔍 වාර්තා (Edit/Delete)":
-    st.subheader("🔍 දත්ත කළමනාකරණය")
+elif current_tab == "🔍 වාර්තා (Edit/Delete)":
+    st.subheader(f"🔍 දත්ත පිරික්සුම - {zone_sel}")
     conn = sqlite3.connect('police_master_system.db')
-    df_r = pd.read_sql_query(f"SELECT * FROM detailed_raids WHERE zone='{zone_sel}'", conn)
+    # Safe Querying
+    df_r = pd.read_sql_query("SELECT * FROM detailed_raids WHERE zone=?", conn, params=(zone_sel,))
+    
     if is_admin:
-        edited_r = st.data_editor(df_r, num_rows="dynamic", key="raid_ed")
-        if st.button("Update Raid Database"):
-            edited_r.to_sql('detailed_raids', conn, if_exists='replace', index=False)
-            st.success("වැටලීම් දත්ත යාවත්කාලීන විය!"); st.rerun()
+        st.info("ඔබට දත්ත සංස්කරණය කළ හැක. වෙනස් කිරීමෙන් පසු 'Update' බොත්තම ඔබන්න.")
+        edited_df = st.data_editor(df_r, num_rows="dynamic", key="editor")
+        if st.button("Save Changes"):
+            # මෙහිදී 'replace' වෙනුවට පරණ ටේබල් එක මකන්නේ නැතිව අප්ඩේට් කිරීම වඩාත් සුදුසුයි
+            edited_df.to_sql('detailed_raids', conn, if_exists='replace', index=False)
+            st.success("දත්ත යාවත්කාලීන විය!")
+            st.rerun()
     else:
-        st.warning("දත්ත වෙනස් කිරීමට Admin Key ඇතුලත් කරන්න.")
+        st.warning("සංස්කරණය කිරීමට Admin Key ඇතුළත් කරන්න.")
         st.dataframe(df_r)
     conn.close()
 
-elif st.session_state['nav_selection'] == "📊 සාරාංශ පිරික්සුම":
-    st.subheader("📊 කලාපීය/සේනාංක සාරාංශ පිරික්සුම")
+elif current_tab == "📊 සාරාංශ පිරික්සුම":
+    st.subheader(f"📊 {zone_sel} සාරාංශය")
     conn = sqlite3.connect('police_master_system.db')
-    df_f = pd.read_sql_query(f"SELECT * FROM force_details WHERE zone='{zone_sel}'", conn)
+    df_f = pd.read_sql_query("SELECT * FROM force_details WHERE zone=?", conn, params=(zone_sel,))
     if not df_f.empty:
-        summary = df_f.groupby('category').sum().reset_index()
+        summary = df_f.groupby('category').sum(numeric_only=True).reset_index()
         st.table(summary[['category', 'SSP', 'SP', 'ASP', 'CI', 'IP', 'SI', 'PS', 'PC', 'row_total']])
+    else:
+        st.info("දත්ත නොමැත.")
     conn.close()
