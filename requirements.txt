@@ -1,6 +1,7 @@
 streamlit
 pandas
 plotly
+fpdf
 Pillow
 xlsxwriter
 st-gsheets-connection
