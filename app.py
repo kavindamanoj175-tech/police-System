@@ -186,7 +186,7 @@ elif current_tab == "🚔 වාහන":
         with st.form("v_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             v_no = col1.text_input("වාහන අංකය")
-            v_type = col1.selectbox("වාර්ගය", ["Land Rover", "Jeep", "Cab", "Truck", "Motorbike"])
+            v_type = col1.selectbox("වාර්ගය", ["Land Rover", "Jeep", "Cab", "Truck", "Motorbike", "Bowser", "Trackter",  "Land Master"])
             v_status = col2.selectbox("තත්ත්වය", ["ධාවනය කළ හැක", "අලුත්වැඩියාවට යවා ඇත", "ධාවනය කළ නොහැක"])
             v_info = col2.text_area("විස්තර")
             if st.form_submit_button("සුරකින්න"):
